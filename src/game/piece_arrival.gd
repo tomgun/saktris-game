@@ -27,7 +27,7 @@ const DEFAULT_ORDER: Array[Piece.Type] = [
 ]
 
 var mode: Mode = Mode.FIXED
-var arrival_frequency: int = 2  ## Piece arrives every N moves
+var arrival_frequency: int = 1  ## Piece arrives every N moves
 
 ## Queues for each player
 var white_queue: Array[Piece.Type] = []

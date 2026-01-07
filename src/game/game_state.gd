@@ -61,7 +61,7 @@ func start_new_game(settings: Dictionary = {}) -> void:
 
 	# Configure arrival manager
 	var arrival_mode: int = settings.get("arrival_mode", PieceArrivalManager.Mode.RANDOM_SAME)
-	var arrival_frequency: int = settings.get("arrival_frequency", 2)
+	var arrival_frequency: int = settings.get("arrival_frequency", 1)
 	arrival_manager.initialize(arrival_mode, arrival_frequency)
 
 	game_mode = settings.get("game_mode", GameMode.TWO_PLAYER)

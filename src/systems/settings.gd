@@ -4,7 +4,7 @@ extends Node
 const SETTINGS_PATH := "user://settings.json"
 
 ## Game settings
-var arrival_frequency: int = 2
+var arrival_frequency: int = 1
 var arrival_mode: int = PieceArrivalManager.Mode.FIXED
 var row_clear_enabled: bool = false
 var physics_bump_enabled: bool = true
@@ -131,7 +131,7 @@ func get_game_settings() -> Dictionary:
 
 func reset_to_defaults() -> void:
 	## Reset all settings to default values
-	arrival_frequency = 2
+	arrival_frequency = 1
 	arrival_mode = PieceArrivalManager.Mode.FIXED
 	row_clear_enabled = false
 	physics_bump_enabled = false
