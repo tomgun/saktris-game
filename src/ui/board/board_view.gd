@@ -28,6 +28,8 @@ var hovered_column: int = -1  # Column currently being hovered for piece placeme
 @onready var arrival_layer: Control = %ArrivalLayer
 @onready var hovering_piece: TextureRect = %HoveringPiece
 @onready var ghost_piece: TextureRect = %GhostPiece
+@onready var black_arrival_area: Control = %BlackArrivalArea
+@onready var white_arrival_area: Control = %WhiteArrivalArea
 @onready var turn_label: Label = %TurnLabel
 @onready var turn_indicator: ColorRect = %TurnIndicator
 @onready var status_label: Label = %StatusLabel
@@ -82,6 +84,11 @@ func _process(delta: float) -> void:
 func initialize(state: GameState) -> void:
 	game_state = state
 
+	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
+	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
+	print("[BoardView] Initialize: current_player=%s, has_piece=%s, must_place=%s" % [
+		player, arriving != null, game_state.must_place_piece()])
+
 	# Connect signals
 	game_state.turn_changed.connect(_on_turn_changed)
 	game_state.status_changed.connect(_on_status_changed)
@@ -100,6 +107,8 @@ func initialize(state: GameState) -> void:
 	_refresh_pieces()
 	_update_turn_display()
 	_update_arrival_display()
+
+	print("[BoardView] After init display: turn_label=%s" % turn_label.text)
 
 	# Check if AI goes first
 	if game_state.is_ai_turn():
@@ -290,6 +299,10 @@ func _get_square(board_pos: Vector2i):
 # Signal handlers
 
 func _on_turn_changed(_player: int) -> void:
+	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
+	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
+	print("[BoardView] Turn changed to %s, has_piece=%s, must_place=%s" % [
+		player, arriving != null, game_state.must_place_piece()])
 	_update_turn_display()
 	_update_arrival_display()
 
@@ -545,15 +558,17 @@ func _update_hovering_piece() -> void:
 		hovering_piece.size = Vector2(square_size, square_size)
 		hovering_piece.visible = true
 
-		# Position the piece outside the board
+		# Position the piece in the arrival area (outside the board)
 		var hover_x := col * square_size
 		var hover_y: float
 		if is_white:
-			# White places on row 0 (bottom of display), so hover below
-			hover_y = BOARD_SIZE * square_size + square_size * 0.2
+			# White places on row 0 (bottom of display), so hover below board
+			# Position relative to board container - arrival area is below
+			hover_y = BOARD_SIZE * square_size + 5
 		else:
-			# Black places on row 7 (top of display), so hover above
-			hover_y = -square_size * 1.2
+			# Black places on row 7 (top of display), so hover above board
+			# Position relative to board container - arrival area is above
+			hover_y = -square_size - 5
 
 		hovering_piece.position = Vector2(hover_x, hover_y)
 
