@@ -16,8 +16,9 @@ Unlike traditional chess where all pieces start on the board, Saktris introduces
 ## Piece Arrival System
 
 ### Arrival Timing
-- A new piece arrives for a player after every **N moves** (configurable, default: 2)
-- The arrival happens at the **start** of the player's turn, before they move
+- A new piece arrives for a player after every **N moves** (configurable, default: 1)
+- The arrival happens at the **start** of the player's turn
+- **Important**: Placing a piece **ends the turn** - you cannot move after placing
 
 ### Placement
 - When a piece arrives, the player chooses which **column** (a-h) to place it
@@ -25,6 +26,11 @@ Unlike traditional chess where all pieces start on the board, Saktris introduces
   - White: row 1
   - Black: row 8
 - If the chosen column is occupied, placement is blocked (see Blocked Placement)
+
+### Bishop Placement Rule
+- A bishop **cannot** be placed on the same color square as an existing bishop of the same player
+- This ensures each player has opposite-colored bishops (one on light squares, one on dark squares)
+- If your first bishop is on a dark square, your second bishop must go on a light square
 
 ### Next Piece Preview
 - Players can always see their **next incoming piece**
@@ -112,12 +118,13 @@ When a piece needs to arrive but all columns on the back row are occupied:
 
 | Setting | Options | Default |
 |---------|---------|---------|
-| Arrival Frequency | 1-5 moves | 2 moves |
+| Arrival Frequency | 1-5 moves | 1 move |
 | Arrival Order | Fixed, Selectable, Random | Random (same) |
 | Random Mode | Same for both, Different | Same |
 | Blocked Placement | Skip, Queue, Force | Skip |
 | Row Clear Rule | On/Off | Off |
 | Physics Bump | On/Off | Off |
+| Bishop Placement Rule | Always On | On |
 
 ## Strategy Tips
 

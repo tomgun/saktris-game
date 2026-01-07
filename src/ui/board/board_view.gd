@@ -20,6 +20,9 @@ var piece_sprites: Dictionary = {}  # Vector2i -> PieceSprite
 var legal_move_indicators: Array = []
 var bumping_pieces: Array[PieceSprite] = []  # Pieces currently flying off
 var hovered_column: int = -1  # Column currently being hovered for piece placement
+var recent_collisions: Dictionary = {}  # Track recent collisions to avoid spark spam
+var dragging_sprite: PieceSprite = null  # Currently dragged piece
+var drag_was_new_selection: bool = false  # Track if drag_started created a new selection
 
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: GridContainer = %SquaresGrid
@@ -66,8 +69,9 @@ func _input(event: InputEvent) -> void:
 				# Check vertical bounds - allow clicks above/below board too
 				var board_height := BOARD_SIZE * square_size
 				var in_extended_area := local_pos.y >= -square_size * 1.5 and local_pos.y <= board_height + square_size * 1.5
+				var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
 
-				if in_extended_area and game_state.board.is_empty(target_pos):
+				if in_extended_area and arriving and game_state.board.can_place_piece_at(target_pos, arriving):
 					if game_state.try_place_piece(col):
 						# Turn ends after placing - no auto-select needed
 						_clear_placement_highlights()
@@ -149,6 +153,12 @@ func _create_piece_sprite(piece: Piece, pos: Vector2i):
 	sprite.setup(piece, pos, square_size)
 	sprite.position = _board_to_pixel(pos)
 	piece_sprites[pos] = sprite
+
+	# Connect drag signals
+	sprite.drag_started.connect(_on_piece_drag_started)
+	sprite.drag_ended.connect(_on_piece_drag_ended)
+	sprite.clicked.connect(_on_piece_clicked)
+
 	return sprite
 
 
@@ -251,6 +261,93 @@ func _execute_move(from: Vector2i, to: Vector2i) -> void:
 	game_state.try_move(from, to)
 
 
+func _on_piece_drag_started(sprite: PieceSprite) -> void:
+	## Handle piece drag start
+	if game_state == null or game_state.is_ai_turn():
+		sprite.cancel_drag()
+		return
+
+	# Can't drag during placement phase
+	if game_state.must_place_piece():
+		sprite.cancel_drag()
+		return
+
+	# Can only drag current player's pieces
+	if sprite.piece.side != game_state.current_player:
+		sprite.cancel_drag()
+		return
+
+	dragging_sprite = sprite
+	# Track if this is a NEW selection (piece wasn't already selected)
+	drag_was_new_selection = (selected_pos != sprite.board_position)
+	_select_piece(sprite.board_position)
+
+
+func _on_piece_drag_ended(sprite: PieceSprite, was_drag: bool) -> void:
+	## Handle piece drag end
+	if dragging_sprite != sprite:
+		return
+
+	if not was_drag:
+		# Was actually a click, not a drag - handled by clicked signal
+		dragging_sprite = null
+		return
+
+	# Find what square we're over
+	var drop_pos := _pixel_to_board(sprite.position + sprite.size / 2)
+
+	if drop_pos in legal_moves:
+		# Valid move - execute it
+		var from_pos := sprite.board_position
+		_deselect()
+		dragging_sprite = null
+		game_state.try_move(from_pos, drop_pos)
+	else:
+		# Invalid - animate back to original position
+		sprite.snap_back()
+		_deselect()
+		dragging_sprite = null
+
+
+func _on_piece_clicked(sprite: PieceSprite) -> void:
+	## Handle simple click on piece (not a drag)
+	var was_new_selection := drag_was_new_selection
+	dragging_sprite = null
+	drag_was_new_selection = false
+
+	if game_state == null or game_state.is_ai_turn():
+		return
+
+	# Can't select during placement phase
+	if game_state.must_place_piece():
+		return
+
+	# Clicking on current player's piece - select/toggle
+	if sprite.piece.side == game_state.current_player:
+		if selected_pos == sprite.board_position:
+			# Only deselect if this piece was ALREADY selected before the click
+			# (not if we just selected it via drag_started in the same click)
+			if not was_new_selection:
+				_deselect()
+			# else: keep it selected (was just selected by this click)
+		else:
+			_select_piece(sprite.board_position)
+	elif selected_pos != Vector2i(-1, -1):
+		# Clicking on opponent's piece while we have selection - check if it's a capture
+		if sprite.board_position in legal_moves:
+			_execute_move(selected_pos, sprite.board_position)
+		else:
+			_deselect()
+
+
+func _pixel_to_board(pixel_pos: Vector2) -> Vector2i:
+	## Convert pixel position to board coordinates
+	var col := int(pixel_pos.x / square_size)
+	var display_row := int(pixel_pos.y / square_size)
+	var board_row := BOARD_SIZE - 1 - display_row
+	return Vector2i(col, board_row)
+
+
 func _show_legal_moves() -> void:
 	_clear_legal_move_indicators()
 
@@ -305,11 +402,20 @@ func _on_game_over(winner: int, reason: String) -> void:
 	status_label.text = "%s wins by %s!" % [winner_name, reason]
 
 
-func _on_piece_moved(from: Vector2i, to: Vector2i, _piece: Piece) -> void:
+func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
 	# Animate the piece movement
 	if from in piece_sprites:
 		var sprite = piece_sprites[from]
-		sprite.animate_to(to, _board_to_pixel(to))
+		var from_pixel := _board_to_pixel(from)
+		var to_pixel := _board_to_pixel(to)
+
+		# Check if this is a long move by a sliding piece (rook, bishop, queen)
+		var move_distance := maxi(absi(to.x - from.x), absi(to.y - from.y))
+		var is_slider := piece.type in [Piece.Type.ROOK, Piece.Type.BISHOP, Piece.Type.QUEEN]
+		if is_slider and move_distance > 2:
+			_spawn_motion_trail(from_pixel, to_pixel, piece.side)
+
+		sprite.animate_to(to, to_pixel)
 		piece_sprites.erase(from)
 		piece_sprites[to] = sprite
 
@@ -335,6 +441,107 @@ func _on_piece_captured(pos: Vector2i, _piece: Piece, attacker_from: Vector2i) -
 			bumping_pieces.append(sprite)
 		else:
 			sprite.queue_free()
+
+
+func _spawn_motion_trail(from_pos: Vector2, to_pos: Vector2, side: int) -> void:
+	## Spawn motion trail (vauhtiraidat) for fast-moving pieces
+	var trail := Line2D.new()
+	highlights_layer.add_child(trail)  # Add to highlights layer (renders above board, below pieces)
+
+	# Trail color based on piece side - more visible colors
+	var base_color := Color(1.0, 0.95, 0.7) if side == Piece.Side.WHITE else Color(0.5, 0.5, 0.6)
+
+	# Create gradient for fading trail
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(base_color, 0.3))  # Semi-transparent at start
+	gradient.set_color(1, Color(base_color, 0.8))  # More visible at end
+	trail.gradient = gradient
+
+	# Trail properties
+	trail.width = square_size * 0.5
+	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
+	trail.z_index = 10  # Above highlights
+
+	# Center offset for piece center
+	var center_offset := Vector2(square_size / 2, square_size / 2)
+
+	# Add multiple trail lines for "speed stripe" effect
+	var direction := (to_pos - from_pos).normalized()
+	var perpendicular := Vector2(-direction.y, direction.x)
+
+	# Main center trail
+	trail.add_point(from_pos + center_offset)
+	trail.add_point(to_pos + center_offset)
+
+	# Add side trails
+	for offset_mult in [-0.3, 0.3]:
+		var side_trail := Line2D.new()
+		highlights_layer.add_child(side_trail)
+		side_trail.gradient = gradient
+		side_trail.width = square_size * 0.2
+		side_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		side_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
+		side_trail.z_index = 10
+
+		var side_offset: Vector2 = perpendicular * square_size * offset_mult
+		side_trail.add_point(from_pos + center_offset + side_offset)
+		side_trail.add_point(to_pos + center_offset + side_offset)
+
+		# Fade and remove side trail
+		var side_tween := create_tween()
+		side_tween.tween_property(side_trail, "modulate:a", 0.0, 0.3).set_delay(0.1)
+		side_tween.tween_callback(side_trail.queue_free)
+
+	# Fade and remove main trail
+	var tween := create_tween()
+	tween.tween_property(trail, "modulate:a", 0.0, 0.35).set_delay(0.05)
+	tween.tween_callback(trail.queue_free)
+
+
+func _get_collision_key(a: PieceSprite, b: PieceSprite) -> String:
+	## Generate a unique key for a collision pair
+	var id_a := a.get_instance_id()
+	var id_b := b.get_instance_id()
+	if id_a < id_b:
+		return "%d_%d" % [id_a, id_b]
+	return "%d_%d" % [id_b, id_a]
+
+
+func _spawn_collision_sparks(position: Vector2, direction: Vector2) -> void:
+	## Spawn spark particles at collision point
+	var sparks := CPUParticles2D.new()
+	pieces_layer.add_child(sparks)
+	sparks.position = position
+	sparks.z_index = 200  # Above everything
+
+	# Particle settings
+	sparks.emitting = true
+	sparks.one_shot = true
+	sparks.explosiveness = 1.0
+	sparks.amount = 12
+	sparks.lifetime = 0.4
+
+	# Spread in direction of impact
+	sparks.direction = Vector2(direction.x, direction.y)
+	sparks.spread = 45.0
+	sparks.initial_velocity_min = 150.0
+	sparks.initial_velocity_max = 300.0
+	sparks.gravity = Vector2(0, 400)
+
+	# Visual appearance - yellow/orange sparks
+	sparks.scale_amount_min = 2.0
+	sparks.scale_amount_max = 4.0
+	sparks.color = Color(1.0, 0.8, 0.2, 1.0)  # Golden yellow
+
+	# Color gradient for fade
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.9, 0.3, 1.0))  # Bright yellow
+	gradient.set_color(1, Color(1.0, 0.4, 0.1, 0.0))  # Orange fade to transparent
+	sparks.color_ramp = gradient
+
+	# Auto-remove after particles finish
+	get_tree().create_timer(1.0).timeout.connect(sparks.queue_free)
 
 
 func _update_physics(delta: float) -> void:
@@ -367,9 +574,17 @@ func _update_physics(delta: float) -> void:
 			var distance := bumping_center.distance_to(other_center)
 
 			if distance < bumping_radius + other_radius:
-				# Collision! Push the board piece
+				# Collision! Push the board piece and spawn sparks
 				var push_dir := (other_center - bumping_center).normalized()
 				board_sprite.nudge(push_dir, 0.4)
+
+				# Only spawn sparks if we haven't recently for this pair
+				var collision_key := _get_collision_key(bumping, board_sprite)
+				var now := Time.get_ticks_msec()
+				if not recent_collisions.has(collision_key) or now - recent_collisions[collision_key] > 100:
+					recent_collisions[collision_key] = now
+					var collision_point := (bumping_center + other_center) / 2
+					_spawn_collision_sparks(collision_point, push_dir)
 
 		# Update physics
 		bumping.physics_update(delta)
@@ -383,6 +598,15 @@ func _update_physics(delta: float) -> void:
 		bumping_pieces.erase(piece)
 		if is_instance_valid(piece):
 			piece.queue_free()
+
+	# Clean up old collision tracking entries (older than 500ms)
+	var now := Time.get_ticks_msec()
+	var keys_to_remove: Array = []
+	for key in recent_collisions:
+		if now - recent_collisions[key] > 500:
+			keys_to_remove.append(key)
+	for key in keys_to_remove:
+		recent_collisions.erase(key)
 
 
 func _on_piece_placed(pos: Vector2i, piece: Piece) -> void:
@@ -538,10 +762,10 @@ func _update_hovering_piece() -> void:
 	# Check if this column is valid for placement
 	var target_row := 0 if is_white else 7
 	var target_pos := Vector2i(col, target_row)
-	var is_valid := game_state.board.is_empty(target_pos)
+	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
+	var is_valid := arriving != null and game_state.board.can_place_piece_at(target_pos, arriving)
 
 	# Update hovering piece
-	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
 	if arriving:
 		hovering_piece.texture = _get_piece_texture(arriving.type, arriving.side)
 		hovering_piece.size = Vector2(square_size, square_size)

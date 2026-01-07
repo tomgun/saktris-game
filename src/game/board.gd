@@ -434,8 +434,40 @@ func place_piece(pos: Vector2i, piece: Piece) -> bool:
 	if not is_valid_position(pos) or not is_empty(pos):
 		return false
 
+	# Bishop placement rule: can't place on same color square as existing bishop
+	if piece.type == Piece.Type.BISHOP:
+		var target_color := (pos.x + pos.y) % 2
+		if _has_bishop_on_color(piece.side, target_color):
+			return false
+
 	set_piece(pos, piece)
 	piece_placed.emit(pos, piece)
+	return true
+
+
+func _has_bishop_on_color(side: int, square_color: int) -> bool:
+	## Returns true if the player has a bishop on a square of the given color
+	for row in range(BOARD_SIZE):
+		for col in range(BOARD_SIZE):
+			var p := get_piece(Vector2i(col, row))
+			if p and p.side == side and p.type == Piece.Type.BISHOP:
+				var color := (col + row) % 2
+				if color == square_color:
+					return true
+	return false
+
+
+func can_place_piece_at(pos: Vector2i, piece: Piece) -> bool:
+	## Returns true if the piece can be placed at this position
+	if not is_valid_position(pos) or not is_empty(pos):
+		return false
+
+	# Bishop placement rule
+	if piece.type == Piece.Type.BISHOP:
+		var target_color := (pos.x + pos.y) % 2
+		if _has_bishop_on_color(piece.side, target_color):
+			return false
+
 	return true
 
 

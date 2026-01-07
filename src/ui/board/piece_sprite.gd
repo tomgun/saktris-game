@@ -24,6 +24,18 @@ const PIECE_TEXTURES := {
 var piece: Piece
 var board_position: Vector2i
 
+## Dragging state
+var is_dragging: bool = false
+var drag_start_pos: Vector2 = Vector2.ZERO
+var drag_offset: Vector2 = Vector2.ZERO
+var drag_distance: float = 0.0  # Track how far we've dragged
+var drag_was_cancelled: bool = false  # Track if drag was cancelled (for click detection)
+const DRAG_THRESHOLD: float = 5.0  # Minimum distance to count as drag vs click
+
+signal drag_started(sprite: PieceSprite)
+signal drag_ended(sprite: PieceSprite, was_drag: bool)  # was_drag = moved enough to be a drag
+signal clicked(sprite: PieceSprite)  # Simple click without drag
+
 
 func setup(p: Piece, pos: Vector2i, square_size: float) -> void:
 	piece = p
@@ -39,8 +51,66 @@ func setup(p: Piece, pos: Vector2i, square_size: float) -> void:
 	expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 
-	# Don't block mouse input - let clicks pass through to squares
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Allow mouse input for dragging
+	mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				# Start potential drag
+				drag_start_pos = position
+				drag_offset = get_local_mouse_position()
+				drag_distance = 0.0
+				is_dragging = true
+				drag_was_cancelled = false
+				z_index = 50  # Bring to front while dragging
+				drag_started.emit(self)
+				accept_event()
+			else:
+				# End drag/click
+				if is_dragging:
+					var was_actual_drag := drag_distance >= DRAG_THRESHOLD
+					is_dragging = false
+					z_index = 0
+
+					if was_actual_drag:
+						drag_ended.emit(self, true)
+					else:
+						# Was just a click - snap back and emit click
+						position = drag_start_pos
+						clicked.emit(self)
+					accept_event()
+				elif drag_was_cancelled:
+					# Drag was cancelled (e.g., clicked on enemy piece) - still emit click
+					drag_was_cancelled = false
+					clicked.emit(self)
+					accept_event()
+
+	elif event is InputEventMouseMotion and is_dragging:
+		# Update position while dragging
+		var new_pos: Vector2 = get_global_mouse_position() - get_parent().global_position - drag_offset
+		drag_distance += position.distance_to(new_pos)
+		position = new_pos
+		accept_event()
+
+
+func cancel_drag() -> void:
+	## Cancel drag immediately (called during drag_started if not allowed)
+	if is_dragging:
+		is_dragging = false
+		drag_was_cancelled = true  # Remember we were in a drag that got cancelled
+		z_index = 0
+		position = drag_start_pos
+
+
+func snap_back() -> void:
+	## Animate back to start position (called after invalid drop)
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(self, "position", drag_start_pos, 0.2)
 
 
 func animate_to(new_pos: Vector2i, target_pixel_pos: Vector2, duration: float = 0.15) -> void:

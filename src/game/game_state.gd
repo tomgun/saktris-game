@@ -274,14 +274,19 @@ func _update_game_status() -> void:
 	var opponent := Piece.Side.BLACK if current_player == Piece.Side.WHITE else Piece.Side.WHITE
 
 	# In Saktris, if opponent has pieces to place or remaining in queue,
-	# they can't be in stalemate (they'll place and then move)
+	# they might be able to escape stalemate by placing and then moving
 	var opponent_has_pieces_coming := arrival_manager.has_pieces_remaining(opponent) or \
 		arrival_manager.get_current_piece(opponent) != null
 
 	# Check if opponent is in check
 	if board.is_in_check(opponent):
-		# Check for checkmate - only if they have no moves AND no pieces to place
-		if _has_no_legal_moves(opponent) and not opponent_has_pieces_coming:
+		# For checkmate: must have no legal moves AND no way to block via placement
+		# Placing on back row rarely blocks check, so we check if any placement helps
+		var can_escape_via_placement := false
+		if opponent_has_pieces_coming:
+			can_escape_via_placement = _can_placement_block_check(opponent)
+
+		if _has_no_legal_moves(opponent) and not can_escape_via_placement:
 			status = Status.CHECKMATE
 		else:
 			status = Status.CHECK
@@ -293,6 +298,28 @@ func _update_game_status() -> void:
 			status = Status.PLAYING
 
 	status_changed.emit(status)
+
+
+func _can_placement_block_check(side: int) -> bool:
+	## Returns true if placing a piece on the back row could block check
+	var back_row := 0 if side == Piece.Side.WHITE else 7
+	var arriving := arrival_manager.get_current_piece(side)
+	if arriving == null:
+		return false
+
+	# Try each column on back row
+	for col in range(Board.BOARD_SIZE):
+		var pos := Vector2i(col, back_row)
+		if board.can_place_piece_at(pos, arriving):
+			# Simulate placing the piece and check if still in check
+			board.set_piece(pos, arriving)
+			var still_in_check := board.is_in_check(side)
+			board.set_piece(pos, null)  # Undo
+
+			if not still_in_check:
+				return true
+
+	return false
 
 
 func _has_no_legal_moves(side: int) -> bool:
@@ -325,8 +352,13 @@ func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
 
 
 func _on_piece_captured(position: Vector2i, piece: Piece, _attacker_from: Vector2i) -> void:
-	# Additional logic when piece captured (e.g., for scoring, animations)
-	pass
+	# If king is captured, game ends immediately (shouldn't happen in proper chess, but safety check)
+	if piece.type == Piece.Type.KING:
+		status = Status.CHECKMATE
+		status_changed.emit(status)
+		# The capturer wins
+		var winner := Piece.Side.BLACK if piece.side == Piece.Side.WHITE else Piece.Side.WHITE
+		game_over.emit(winner, "king captured")
 
 
 func get_legal_moves_for_current_player() -> Dictionary:

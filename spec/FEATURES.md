@@ -16,10 +16,10 @@
 ## F-0001: GodotProjectSetup
 - Parent: none
 - Dependencies: none
-- Status: in_progress
+- Status: shipped
 - Acceptance: spec/acceptance/F-0001.md
 - Implementation:
-  - State: partial
+  - State: complete
   - Files: project.godot, src/main.tscn, src/main.gd, src/systems/*.gd
 - Tests:
   - Unit: N/A
@@ -28,49 +28,50 @@
 ## F-0002: ChessBoardDisplay
 - Parent: none
 - Dependencies: F-0001
-- Status: planned
+- Status: shipped
 - Acceptance: spec/acceptance/F-0002.md
 - Implementation:
-  - State: none
+  - State: complete
+  - Files: src/ui/board/board_view.gd, src/ui/board/board_view.tscn, src/ui/board/square.gd, src/ui/board/piece_sprite.gd
 - Tests:
-  - Unit: todo
-- Description: Render 8x8 chess board with alternating colors, coordinate labels, and responsive layout
+  - Unit: N/A (visual feature)
+- Description: Render 8x8 chess board with alternating colors, coordinate labels, and responsive layout. Supports both click-to-move and drag-and-drop piece movement.
 
 ## F-0003: PieceMovementRules
 - Parent: none
 - Dependencies: F-0002
-- Status: in_progress
+- Status: shipped
 - Acceptance: spec/acceptance/F-0003.md
 - Implementation:
-  - State: partial
+  - State: complete
   - Files: src/game/piece.gd, src/game/board.gd
 - Tests:
-  - Unit: partial (tests/unit/test_piece.gd, tests/unit/test_board.gd)
+  - Unit: tests/unit/test_piece.gd, tests/unit/test_board.gd
 - Description: Implement movement rules for all six chess piece types (King, Queen, Rook, Bishop, Knight, Pawn) including captures
 
 ## F-0004: PieceArrivalSystem
 - Parent: none
 - Dependencies: F-0003
-- Status: in_progress
+- Status: shipped
 - Acceptance: spec/acceptance/F-0004.md
 - Implementation:
-  - State: partial
-  - Files: src/game/piece_arrival.gd
+  - State: complete
+  - Files: src/game/piece_arrival.gd, src/game/game_state.gd
 - Tests:
-  - Unit: todo
-- Description: System for pieces to arrive one-by-one with next piece preview, column selection, and configurable arrival frequency
+  - Unit: tests/unit/test_piece_arrival_rules.gd (11 tests)
+- Description: System for pieces to arrive one-by-one with next piece preview, column selection, and configurable arrival frequency. Placing a piece ends the turn.
 
 ## F-0005: GameLoopAndTurns
 - Parent: none
 - Dependencies: F-0003, F-0004
-- Status: in_progress
+- Status: shipped
 - Acceptance: spec/acceptance/F-0005.md
 - Implementation:
-  - State: partial
+  - State: complete
   - Files: src/game/game_state.gd
 - Tests:
-  - Unit: todo
-- Description: Two-player turn system with check detection, checkmate detection, stalemate handling, and game over conditions
+  - Unit: tests/unit/test_game_state.gd
+- Description: Two-player turn system with check detection, checkmate detection, stalemate handling, and game over conditions. Turn flow: place piece OR move (not both).
 
 ## F-0006: SaveLoadSystem
 - Parent: none
@@ -97,12 +98,13 @@
 ## F-0008: AIOpponent
 - Parent: none
 - Dependencies: F-0005
-- Status: planned
+- Status: shipped
 - Acceptance: spec/acceptance/F-0008.md
 - Implementation:
-  - State: none
+  - State: complete
+  - Files: src/game/ai.gd
 - Tests:
-  - Unit: todo
+  - Unit: N/A (gameplay testing)
 - Description: Computer opponent using minimax algorithm with configurable difficulty
 
 ## F-0009: MoveHistoryNavigation
@@ -130,12 +132,13 @@
 ## F-0011: SpecialChessRules
 - Parent: F-0003
 - Dependencies: F-0003
-- Status: planned
+- Status: shipped
 - Acceptance: spec/acceptance/F-0011.md
 - Implementation:
-  - State: none
+  - State: complete
+  - Files: src/game/board.gd, src/game/game_state.gd, src/ui/board/board_view.gd
 - Tests:
-  - Unit: todo
+  - Unit: tests/unit/test_board.gd
 - Description: Implement castling, en passant, pawn promotion
 
 ## F-0012: PhysicsBumpMode
@@ -148,7 +151,7 @@
   - Files: src/ui/board/piece_sprite.gd, src/game/board.gd, src/ui/board/board_view.gd, src/systems/settings.gd
 - Tests:
   - Unit: N/A (visual feature)
-- Description: Optional visual mode where captured pieces are bumped off with physics animation
+- Description: Optional visual mode where captured pieces are bumped off with physics animation. Includes collision sparks (particle effects) and motion trails for long-distance moves by rooks/bishops/queens.
 
 ## F-0013: RowClearRule
 - Parent: none
@@ -160,3 +163,15 @@
 - Tests:
   - Unit: todo
 - Description: Optional Tetris-style rule: three pawns in a row clears the row
+
+## F-0014: BishopPlacementRule
+- Parent: F-0004
+- Dependencies: F-0004
+- Status: shipped
+- Acceptance: N/A
+- Implementation:
+  - State: complete
+  - Files: src/game/board.gd
+- Tests:
+  - Unit: N/A (enforced in placement logic)
+- Description: Bishops cannot be placed on the same color square as an existing bishop of the same player. Ensures opposite-colored bishop pair like standard chess.
