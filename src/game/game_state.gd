@@ -165,6 +165,16 @@ func try_place_piece(column: int) -> bool:
 
 	arrival_manager.piece_placed(current_player)
 
+	# Update game status after placement (check detection)
+	_update_game_status()
+
+	if status == Status.CHECKMATE:
+		game_over.emit(current_player, "checkmate")
+		return true
+	elif status == Status.STALEMATE:
+		game_over.emit(Piece.Side.WHITE, "stalemate")
+		return true
+
 	# Placing ends the turn
 	_switch_turn()
 
