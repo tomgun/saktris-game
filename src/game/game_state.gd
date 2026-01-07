@@ -151,7 +151,7 @@ func _finish_turn() -> void:
 
 func try_place_piece(column: int) -> bool:
 	## Attempts to place the arriving piece in the specified column
-	## After placing, the player can still make a move (turn doesn't end)
+	## Placing a piece ENDS the turn (no move allowed after)
 	var arriving := arrival_manager.get_current_piece(current_player)
 	if arriving == null:
 		return false
@@ -165,7 +165,9 @@ func try_place_piece(column: int) -> bool:
 
 	arrival_manager.piece_placed(current_player)
 
-	# Don't switch turns - player can still make a move
+	# Placing ends the turn
+	_switch_turn()
+
 	return true
 
 
@@ -210,28 +212,26 @@ func is_ai_turn() -> bool:
 
 func request_ai_move() -> void:
 	## Request the AI to make a move (call this after ai_turn_started)
-	## AI will place a piece (if needed) AND make a move in the same turn
+	## AI will EITHER place a piece OR make a move (not both!)
 	if not is_ai_turn():
 		print("[DEBUG] request_ai_move: not AI's turn!")
 		return
 
-	# Step 1: Place piece if we have one AND there's space
+	# If we have a piece to place, place it (this ends the turn)
 	if must_place_piece():
 		var placement: Dictionary = ai.get_best_move(self)
 		print("[DEBUG] AI placement decision: %s" % placement)
 		if placement.has("column") and placement["column"] >= 0:
 			var column: int = placement["column"]
-			try_place_piece(column)
+			try_place_piece(column)  # This ends the turn
 			print("[DEBUG] AI placed at column %d" % column)
 			ai_move_made.emit({"type": "placement", "column": column})
+			return  # Turn is over
 		else:
-			print("[DEBUG] AI: No valid placement found, skipping")
-	else:
-		var arriving := arrival_manager.get_current_piece(current_player)
-		if arriving != null:
-			print("[DEBUG] AI has piece but no space to place - skipping placement")
+			print("[DEBUG] AI: No valid placement found!")
+			return
 
-	# Step 2: Make a regular move
+	# No piece to place - make a regular move
 	var move: Dictionary = ai.get_best_move(self)
 	print("[DEBUG] AI move decision: %s" % move)
 

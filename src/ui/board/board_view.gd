@@ -67,9 +67,10 @@ func _input(event: InputEvent) -> void:
 
 				if in_extended_area and game_state.board.is_empty(target_pos):
 					if game_state.try_place_piece(col):
+						# Turn ends after placing - no auto-select needed
 						_clear_placement_highlights()
 						_update_arrival_display()
-						_select_piece(target_pos)
+						_update_turn_display()
 						get_viewport().set_input_as_handled()
 
 
@@ -177,13 +178,11 @@ func _on_square_clicked(board_pos: Vector2i) -> void:
 		print("[DEBUG] Must place piece first! Clicking %s" % board_pos)
 		# In arrival mode - try to place piece
 		if _try_place_arriving_piece(board_pos):
-			print("[DEBUG] Piece placed successfully")
+			print("[DEBUG] Piece placed successfully - turn ends")
 			_clear_placement_highlights()
 			_update_arrival_display()
-			# Auto-select the placed piece so user can immediately move
-			# (Pawns can move from back row, other pieces might need to wait)
-			_select_piece(board_pos)
-			print("[DEBUG] Auto-selected placed piece at %s" % board_pos)
+			_update_turn_display()
+			# Turn ends after placing - no auto-select
 		else:
 			print("[DEBUG] Invalid placement location - must place on back row empty square")
 		return  # Don't allow normal moves while placing
