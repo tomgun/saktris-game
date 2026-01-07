@@ -84,11 +84,6 @@ func _process(delta: float) -> void:
 func initialize(state: GameState) -> void:
 	game_state = state
 
-	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
-	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
-	print("[BoardView] Initialize: current_player=%s, has_piece=%s, must_place=%s" % [
-		player, arriving != null, game_state.must_place_piece()])
-
 	# Connect signals
 	game_state.turn_changed.connect(_on_turn_changed)
 	game_state.status_changed.connect(_on_status_changed)
@@ -107,8 +102,6 @@ func initialize(state: GameState) -> void:
 	_refresh_pieces()
 	_update_turn_display()
 	_update_arrival_display()
-
-	print("[BoardView] After init display: turn_label=%s" % turn_label.text)
 
 	# Check if AI goes first
 	if game_state.is_ai_turn():
@@ -299,10 +292,6 @@ func _get_square(board_pos: Vector2i):
 # Signal handlers
 
 func _on_turn_changed(_player: int) -> void:
-	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
-	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
-	print("[BoardView] Turn changed to %s, has_piece=%s, must_place=%s" % [
-		player, arriving != null, game_state.must_place_piece()])
 	_update_turn_display()
 	_update_arrival_display()
 
