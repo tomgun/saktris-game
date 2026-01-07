@@ -1,0 +1,225 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8m3k5n7j2x4p"]
+
+[ext_resource type="Script" path="res://src/ui/board/board_view.gd" id="1_board"]
+
+[node name="BoardView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_board")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="BoardContainer" type="Control" parent="MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="BoardBackground" type="ColorRect" parent="MarginContainer/HBoxContainer/BoardContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.2, 0.15, 0.1, 1)
+
+[node name="SquaresGrid" type="GridContainer" parent="MarginContainer/HBoxContainer/BoardContainer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+columns = 8
+
+[node name="PiecesLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardContainer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HighlightsLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardContainer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ArrivalLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardContainer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HoveringPiece" type="TextureRect" parent="MarginContainer/HBoxContainer/BoardContainer/ArrivalLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_right = 64.0
+offset_bottom = 64.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="GhostPiece" type="TextureRect" parent="MarginContainer/HBoxContainer/BoardContainer/ArrivalLayer"]
+unique_name_in_owner = true
+visible = false
+modulate = Color(1, 1, 1, 0.4)
+layout_mode = 0
+offset_right = 64.0
+offset_bottom = 64.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SidePanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 10
+
+[node name="StatusPanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="TurnContainer" type="HBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel/StatusPanel"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="TurnIndicator" type="ColorRect" parent="MarginContainer/HBoxContainer/SidePanel/StatusPanel/TurnContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(16, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 1, 1, 1)
+
+[node name="TurnLabel" type="Label" parent="MarginContainer/HBoxContainer/SidePanel/StatusPanel/TurnContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "White to move"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/HBoxContainer/SidePanel/StatusPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.9, 0.3, 0.3, 1)
+
+[node name="Separator" type="HSeparator" parent="MarginContainer/HBoxContainer/SidePanel"]
+layout_mode = 2
+
+[node name="ArrivalPanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+
+[node name="ArrivalLabel" type="Label" parent="MarginContainer/HBoxContainer/SidePanel/ArrivalPanel"]
+layout_mode = 2
+text = "Place piece:"
+horizontal_alignment = 1
+
+[node name="ArrivalPieceContainer" type="CenterContainer" parent="MarginContainer/HBoxContainer/SidePanel/ArrivalPanel"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+
+[node name="ArrivalPieceSprite" type="TextureRect" parent="MarginContainer/HBoxContainer/SidePanel/ArrivalPanel/ArrivalPieceContainer"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ColumnButtons" type="HBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel/ArrivalPanel"]
+layout_mode = 2
+alignment = 1
+
+[node name="Separator2" type="HSeparator" parent="MarginContainer/HBoxContainer/SidePanel"]
+layout_mode = 2
+
+[node name="QueuePanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="QueueLabel" type="Label" parent="MarginContainer/HBoxContainer/SidePanel/QueuePanel"]
+layout_mode = 2
+text = "Next pieces:"
+horizontal_alignment = 1
+
+[node name="QueueContainer" type="HBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel/QueuePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 4
+
+[node name="Spacer" type="Control" parent="MarginContainer/HBoxContainer/SidePanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="NewGameButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "New Game"
+
+[node name="PromotionDialog" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -120.0
+offset_top = -60.0
+offset_right = 120.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="PromotionDialog"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PromotionLabel" type="Label" parent="PromotionDialog/VBox"]
+layout_mode = 2
+text = "Choose promotion:"
+horizontal_alignment = 1
+
+[node name="PromotionButtons" type="HBoxContainer" parent="PromotionDialog/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10

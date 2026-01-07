@@ -1,0 +1,65 @@
+# Godot 4 specific
+.godot/
+*.import
+
+# Export templates and builds
+/build/
+/export/
+*.exe
+*.x86_64
+*.x86
+*.apk
+*.aab
+*.pck
+*.zip
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# User-specific files
+*.user
+
+# GUT test framework
+.gut_editor_config.json
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
+
+# Asset import cache (regenerated)
+.import/
+
+# Local environment
+.env
+.env.local
+
+# Editor backup files
+*~
+\#*\#
+
+# Mono/.NET specific (if using C#)
+.mono/
+data_*/
+
+# Godot exported data
+*.translation

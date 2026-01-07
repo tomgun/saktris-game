@@ -1,0 +1,147 @@
+extends Node
+## Global settings autoload - manages user preferences and game settings
+
+const SETTINGS_PATH := "user://settings.json"
+
+## Game settings
+var arrival_frequency: int = 2
+var arrival_mode: int = PieceArrivalManager.Mode.FIXED
+var row_clear_enabled: bool = false
+var physics_bump_enabled: bool = true
+var piece_preview_count: int = 1  ## How many upcoming pieces to show
+var game_mode: int = 0  ## 0 = TWO_PLAYER, 1 = VS_AI
+var ai_difficulty: int = 1  ## 0 = EASY, 1 = MEDIUM, 2 = HARD
+var ai_side: int = Piece.Side.BLACK  ## Which side the AI plays
+
+## Audio settings
+var master_volume: float = 1.0
+var music_volume: float = 0.8
+var sfx_volume: float = 1.0
+
+## Visual settings
+var board_theme: String = "classic"
+var piece_set: String = "standard"
+var show_coordinates: bool = true
+var show_legal_moves: bool = true
+var animation_speed: float = 1.0
+
+signal settings_changed
+
+
+func _ready() -> void:
+	load_settings()
+
+
+func load_settings() -> void:
+	## Load settings from file
+	if not FileAccess.file_exists(SETTINGS_PATH):
+		return
+
+	var file := FileAccess.open(SETTINGS_PATH, FileAccess.READ)
+	if file == null:
+		return
+
+	var json := JSON.new()
+	var error := json.parse(file.get_as_text())
+	file.close()
+
+	if error != OK:
+		push_warning("Failed to parse settings file")
+		return
+
+	var data: Dictionary = json.data
+
+	# Game settings
+	arrival_frequency = data.get("arrival_frequency", arrival_frequency)
+	arrival_mode = data.get("arrival_mode", arrival_mode)
+	row_clear_enabled = data.get("row_clear_enabled", row_clear_enabled)
+	physics_bump_enabled = data.get("physics_bump_enabled", physics_bump_enabled)
+	piece_preview_count = data.get("piece_preview_count", piece_preview_count)
+
+	# Audio settings
+	master_volume = data.get("master_volume", master_volume)
+	music_volume = data.get("music_volume", music_volume)
+	sfx_volume = data.get("sfx_volume", sfx_volume)
+
+	# Visual settings
+	board_theme = data.get("board_theme", board_theme)
+	piece_set = data.get("piece_set", piece_set)
+	show_coordinates = data.get("show_coordinates", show_coordinates)
+	show_legal_moves = data.get("show_legal_moves", show_legal_moves)
+	animation_speed = data.get("animation_speed", animation_speed)
+
+	_apply_audio_settings()
+
+
+func save_settings() -> void:
+	## Save settings to file
+	var data := {
+		"arrival_frequency": arrival_frequency,
+		"arrival_mode": arrival_mode,
+		"row_clear_enabled": row_clear_enabled,
+		"physics_bump_enabled": physics_bump_enabled,
+		"piece_preview_count": piece_preview_count,
+		"master_volume": master_volume,
+		"music_volume": music_volume,
+		"sfx_volume": sfx_volume,
+		"board_theme": board_theme,
+		"piece_set": piece_set,
+		"show_coordinates": show_coordinates,
+		"show_legal_moves": show_legal_moves,
+		"animation_speed": animation_speed
+	}
+
+	var file := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to save settings")
+		return
+
+	file.store_string(JSON.stringify(data, "\t"))
+	file.close()
+	settings_changed.emit()
+
+
+func _apply_audio_settings() -> void:
+	## Apply audio settings to audio buses
+	# Assumes standard audio bus layout: Master, Music, SFX
+	var master_bus := AudioServer.get_bus_index("Master")
+	var music_bus := AudioServer.get_bus_index("Music")
+	var sfx_bus := AudioServer.get_bus_index("SFX")
+
+	if master_bus >= 0:
+		AudioServer.set_bus_volume_db(master_bus, linear_to_db(master_volume))
+	if music_bus >= 0:
+		AudioServer.set_bus_volume_db(music_bus, linear_to_db(music_volume))
+	if sfx_bus >= 0:
+		AudioServer.set_bus_volume_db(sfx_bus, linear_to_db(sfx_volume))
+
+
+func get_game_settings() -> Dictionary:
+	## Returns settings for starting a new game
+	return {
+		"arrival_frequency": arrival_frequency,
+		"arrival_mode": arrival_mode,
+		"row_clear_enabled": row_clear_enabled,
+		"physics_bump_enabled": physics_bump_enabled,
+		"game_mode": game_mode,
+		"ai_difficulty": ai_difficulty,
+		"ai_side": ai_side
+	}
+
+
+func reset_to_defaults() -> void:
+	## Reset all settings to default values
+	arrival_frequency = 2
+	arrival_mode = PieceArrivalManager.Mode.FIXED
+	row_clear_enabled = false
+	physics_bump_enabled = false
+	piece_preview_count = 1
+	master_volume = 1.0
+	music_volume = 0.8
+	sfx_volume = 1.0
+	board_theme = "classic"
+	piece_set = "standard"
+	show_coordinates = true
+	show_legal_moves = true
+	animation_speed = 1.0
+	save_settings()

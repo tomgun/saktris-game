@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#2d2d2d"/>
+  <!-- Chess board pattern hint -->
+  <rect x="24" y="24" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="44" y="24" width="20" height="20" fill="#b58863"/>
+  <rect x="64" y="24" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="84" y="24" width="20" height="20" fill="#b58863"/>
+  <rect x="24" y="44" width="20" height="20" fill="#b58863"/>
+  <rect x="44" y="44" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="64" y="44" width="20" height="20" fill="#b58863"/>
+  <rect x="84" y="44" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="24" y="64" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="44" y="64" width="20" height="20" fill="#b58863"/>
+  <rect x="64" y="64" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="84" y="64" width="20" height="20" fill="#b58863"/>
+  <rect x="24" y="84" width="20" height="20" fill="#b58863"/>
+  <rect x="44" y="84" width="20" height="20" fill="#f0d9b5"/>
+  <rect x="64" y="84" width="20" height="20" fill="#b58863"/>
+  <rect x="84" y="84" width="20" height="20" fill="#f0d9b5"/>
+  <!-- S letter for Saktris -->
+  <text x="64" y="75" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffffff" text-anchor="middle">S</text>
+</svg>
