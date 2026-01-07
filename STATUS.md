@@ -23,6 +23,7 @@
   - Web export with GitHub Pages deployment
 
 ## Known Issues
+- **BUG: Turn logic broken at game start** - When pieces are arriving at the beginning, the turn logic doesn't follow the spec. After initial arrivals, normal chess works. Debug this first!
 - Black's arrival area (above board) not visible - board needs repositioning
 - No in-game title display
 
