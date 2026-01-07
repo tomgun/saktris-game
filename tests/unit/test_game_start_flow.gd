@@ -111,6 +111,88 @@ func test_game_start_vs_ai_flow() -> void:
 	print("\n=== END FLOW ===")
 
 
+func test_no_continuous_placement_after_second_piece() -> void:
+	## After placing second piece, should NOT immediately get another
+	## This was the bug: pieces kept arriving without moves
+	print("\n=== TEST: No continuous placement ===")
+
+	game_state.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 2,
+		"game_mode": GameState.GameMode.TWO_PLAYER
+	})
+
+	# White places first piece (turn 1)
+	game_state.try_place_piece(4)
+	assert_eq(game_state.current_player, Piece.Side.BLACK)
+
+	# Black places first piece (turn 2)
+	game_state.try_place_piece(4)
+	assert_eq(game_state.current_player, Piece.Side.WHITE)
+
+	# White move 1 (turn 3)
+	game_state.try_move(Vector2i(4, 0), Vector2i(4, 1))
+	assert_eq(game_state.current_player, Piece.Side.BLACK)
+
+	# Black move 1 (turn 4)
+	game_state.try_move(Vector2i(4, 7), Vector2i(4, 6))
+	assert_eq(game_state.current_player, Piece.Side.WHITE)
+
+	# White move 2 (turn 5)
+	game_state.try_move(Vector2i(4, 1), Vector2i(4, 2))
+	assert_eq(game_state.current_player, Piece.Side.BLACK)
+
+	# Black move 2 (turn 6) - after this, it's White's turn
+	# White has made 2 moves, so White should get a piece
+	game_state.try_move(Vector2i(4, 6), Vector2i(4, 5))
+	assert_eq(game_state.current_player, Piece.Side.WHITE)
+
+	print("After Black's 2nd move (White's turn):")
+	_print_state()
+
+	# White should have a piece (2 moves made since last piece)
+	assert_true(game_state.must_place_piece(), "White should have piece after 2 moves")
+	assert_eq(game_state.arrival_manager.white_moves_made, 2)
+	assert_eq(game_state.arrival_manager.white_pieces_given, 1)
+
+	# White places second piece (turn 7)
+	game_state.try_place_piece(3)
+	assert_eq(game_state.current_player, Piece.Side.BLACK)
+
+	print("After White places 2nd piece (Black's turn):")
+	_print_state()
+
+	# Black should also have a piece now (2 moves made since last piece)
+	assert_true(game_state.must_place_piece(),
+		"Black should have piece (2 moves made)")
+	assert_eq(game_state.arrival_manager.black_moves_made, 2)
+	assert_eq(game_state.arrival_manager.black_pieces_given, 1)
+
+	# Black places second piece (turn 8)
+	game_state.try_place_piece(3)
+	assert_eq(game_state.current_player, Piece.Side.WHITE)
+
+	print("After Black places 2nd piece (White's turn):")
+	_print_state()
+
+	# KEY TEST: White should NOT have piece yet!
+	# White has 2 moves and 2 pieces_given, needs 4 moves for 3rd piece
+	assert_false(game_state.must_place_piece(),
+		"White should NOT have piece (2 moves, need 4 for 3rd piece)")
+	assert_eq(game_state.arrival_manager.white_pieces_given, 2)
+	assert_eq(game_state.arrival_manager.white_moves_made, 2)
+
+	# White move 3 (turn 9)
+	game_state.try_move(Vector2i(4, 2), Vector2i(4, 3))
+	assert_eq(game_state.current_player, Piece.Side.BLACK)
+
+	# Black should NOT have piece yet (2 moves, 2 pieces_given)
+	assert_false(game_state.must_place_piece(),
+		"Black should NOT have piece (2 moves, need 4 for 3rd piece)")
+
+	print("=== TEST PASSED ===\n")
+
+
 func _print_state() -> void:
 	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
 	var white_piece := game_state.arrival_manager.get_current_piece(Piece.Side.WHITE)

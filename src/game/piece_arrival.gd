@@ -139,13 +139,12 @@ func should_piece_arrive(color: int, _move_count: int) -> bool:
 	if queue.is_empty() and mode != Mode.SELECTABLE:
 		return false
 
-	# First piece arrives immediately
-	if pieces_given == 0:
-		return true
-
-	# A piece arrives every N moves by THIS player (not global moves)
-	# e.g., with frequency=2, piece arrives after player's 2nd, 4th, 6th move, etc.
-	return (moves_made > 0) and (moves_made % arrival_frequency == 0)
+	# A piece arrives when player has made enough moves since last piece
+	# First piece (pieces_given=0): arrives immediately (0 >= 0*freq)
+	# Second piece (pieces_given=1): arrives after freq moves (moves >= 1*freq)
+	# Third piece (pieces_given=2): arrives after 2*freq moves (moves >= 2*freq)
+	# etc.
+	return moves_made >= pieces_given * arrival_frequency
 
 
 func queue_next_piece(color: int) -> void:
