@@ -35,6 +35,12 @@ signal move_executed(move_data: Dictionary)
 signal promotion_needed(position: Vector2i, side: int)
 signal ai_turn_started()
 signal ai_move_made(move_data: Dictionary)
+signal ai_thinking_started()
+signal ai_thinking_finished()
+signal ai_progress(percent: float)
+
+## AI calculation state
+var _ai_calculating := false
 
 
 func _init() -> void:
@@ -223,29 +229,35 @@ func is_ai_turn() -> bool:
 func request_ai_move() -> void:
 	## Request the AI to make a move (call this after ai_turn_started)
 	## AI will EITHER place a piece OR make a move (not both!)
+	## Uses async calculation to keep UI responsive
 	if not is_ai_turn():
 		print("[DEBUG] request_ai_move: not AI's turn!")
 		return
 
-	# If we have a piece to place, place it (this ends the turn)
-	if must_place_piece():
-		var placement: Dictionary = ai.get_best_move(self)
-		print("[DEBUG] AI placement decision: %s" % placement)
-		if placement.has("column") and placement["column"] >= 0:
-			var column: int = placement["column"]
-			try_place_piece(column)  # This ends the turn
-			print("[DEBUG] AI placed at column %d" % column)
-			ai_move_made.emit({"type": "placement", "column": column})
-			return  # Turn is over
-		else:
-			print("[DEBUG] AI: No valid placement found!")
-			return
+	if _ai_calculating:
+		print("[DEBUG] request_ai_move: already calculating!")
+		return
 
-	# No piece to place - make a regular move
-	var move: Dictionary = ai.get_best_move(self)
-	print("[DEBUG] AI move decision: %s" % move)
+	_ai_calculating = true
+	ai_thinking_started.emit()
 
-	if move.has("from") and move.has("to"):
+	# Connect progress signal if not already connected
+	if not ai.progress_updated.is_connected(_on_ai_progress):
+		ai.progress_updated.connect(_on_ai_progress)
+
+	# Use async version to keep UI responsive
+	var move: Dictionary = await ai.get_best_move_async(self)
+
+	_ai_calculating = false
+	ai_thinking_finished.emit()
+
+	# Execute the move
+	if move.has("column") and move["column"] >= 0:
+		var column: int = move["column"]
+		try_place_piece(column)
+		print("[DEBUG] AI placed at column %d" % column)
+		ai_move_made.emit({"type": "placement", "column": column})
+	elif move.has("from") and move.has("to"):
 		var from: Vector2i = move["from"]
 		var to: Vector2i = move["to"]
 		if from != Vector2i(-1, -1):
@@ -256,6 +268,10 @@ func request_ai_move() -> void:
 			print("[DEBUG] AI: No valid move found!")
 	else:
 		print("[DEBUG] AI: Unexpected move format: %s" % move)
+
+
+func _on_ai_progress(percent: float) -> void:
+	ai_progress.emit(percent)
 
 
 func _process_piece_arrival() -> void:

@@ -118,6 +118,9 @@ func initialize(state: GameState) -> void:
 	game_state.game_over.connect(_on_game_over)
 	game_state.promotion_needed.connect(_on_promotion_needed)
 	game_state.ai_turn_started.connect(_on_ai_turn_started)
+	game_state.ai_thinking_started.connect(_on_ai_thinking_started)
+	game_state.ai_thinking_finished.connect(_on_ai_thinking_finished)
+	game_state.ai_progress.connect(_on_ai_progress)
 	game_state.board.piece_moved.connect(_on_piece_moved)
 	game_state.board.piece_captured.connect(_on_piece_captured)
 	game_state.board.piece_placed.connect(_on_piece_placed)
@@ -934,6 +937,18 @@ func _on_ai_turn_started() -> void:
 
 func _on_new_game_pressed() -> void:
 	new_game_requested.emit()
+
+
+func _on_ai_thinking_started() -> void:
+	status_label.text = "AI thinking..."
+
+
+func _on_ai_thinking_finished() -> void:
+	_update_status_display(game_state.status)
+
+
+func _on_ai_progress(percent: float) -> void:
+	status_label.text = "AI thinking... %d%%" % int(percent * 100)
 
 
 # Arrow drawing for move planning

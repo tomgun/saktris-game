@@ -4,6 +4,9 @@ extends RefCounted
 
 enum Difficulty { EASY, MEDIUM, HARD }
 
+## Signal for progress updates during async calculation
+signal progress_updated(percent: float)
+
 ## Piece values for evaluation
 const PIECE_VALUES := {
 	Piece.Type.PAWN: 100,
@@ -45,6 +48,56 @@ func get_best_move(game_state: GameState) -> Dictionary:
 
 	# Find best move using minimax
 	return _get_best_regular_move(game_state)
+
+
+func get_best_move_async(game_state: GameState) -> Dictionary:
+	## Async version - yields periodically to keep UI responsive
+	## Works on all platforms including Web, iOS, Android
+
+	# Check if we need to place a piece first (fast, no async needed)
+	var arriving := game_state.arrival_manager.get_current_piece(side)
+	if arriving != null:
+		return _get_best_placement(game_state)
+
+	# Find best move using async minimax
+	return await _get_best_regular_move_async(game_state)
+
+
+func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
+	## Async version that yields every few moves to keep UI responsive
+	var best_move := {"from": Vector2i(-1, -1), "to": Vector2i(-1, -1)}
+	var best_score := -INF
+	var alpha := -INF
+	var beta := INF
+
+	var all_moves := _get_all_moves(game_state.board, side)
+
+	# Shuffle for variety when moves have equal scores
+	all_moves.shuffle()
+
+	var total := all_moves.size()
+	if total == 0:
+		return best_move
+
+	for i in range(total):
+		var move = all_moves[i]
+
+		# Yield every 3 moves to let UI update
+		if i % 3 == 0 and i > 0:
+			progress_updated.emit(float(i) / total)
+			await Engine.get_main_loop().process_frame
+
+		var score := _minimax(game_state.board, move["from"], move["to"],
+							  max_depth - 1, alpha, beta, false)
+
+		if score > best_score:
+			best_score = score
+			best_move = move
+
+		alpha = max(alpha, score)
+
+	progress_updated.emit(1.0)
+	return best_move
 
 
 func _get_best_placement(game_state: GameState) -> Dictionary:
