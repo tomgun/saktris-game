@@ -27,7 +27,7 @@
   - Game title and credit on main screen
 
 ## Known Issues
-- Right-click arrow drawing may not work in native Godot editor (needs investigation)
+- None critical
 
 ## Completed Features
 - F-0001: Godot project structure
