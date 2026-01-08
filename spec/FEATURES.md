@@ -125,10 +125,10 @@
 - Acceptance: spec/acceptance/F-0010.md
 - Implementation:
   - State: complete
-  - Files: src/ui/board/board_view.gd, src/ui/board/board_view.tscn
+  - Files: src/ui/board/board_view.gd, src/ui/board/board_view.tscn, export_templates/web_shell.html
 - Tests:
   - Unit: N/A (visual feature)
-- Description: Draw arrows on board for planning moves (right-click drag). Arrows validate against piece movement patterns but ignore blockers. Works on any piece regardless of turn.
+- Description: Draw arrows on board for planning moves (right-click drag). Arrows validate against piece movement patterns but ignore blockers. Works on any piece regardless of turn. Knight arrows show L-shaped paths matching their movement pattern. Custom HTML shell prevents browser context menu in web export.
 
 ## F-0011: SpecialChessRules
 - Parent: F-0003

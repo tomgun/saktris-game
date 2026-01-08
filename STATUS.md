@@ -20,14 +20,14 @@
   - Motion trails for long-distance slider moves
   - Hovering piece placement UX
   - Drag-and-drop AND click-to-move piece movement
-  - Arrow drawing for move planning (right-click drag)
-  - Web export with GitHub Pages deployment
+  - Arrow drawing for move planning (right-click drag, L-shaped for knights)
+  - Web export with GitHub Pages deployment (custom HTML shell)
   - Both Black and White arrival areas visible
   - Proper checkmate/king capture detection
   - Game title and credit on main screen
 
 ## Known Issues
-- None critical
+- Right-click arrow drawing may not work in native Godot editor (needs investigation)
 
 ## Completed Features
 - F-0001: Godot project structure
