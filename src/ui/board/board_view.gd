@@ -63,7 +63,6 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	# Handle right-click for arrow drawing
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
-		print("[DEBUG] Right-click detected: pressed=%s" % event.pressed)
 		if event.pressed:
 			_start_arrow_drawing()
 		else:
@@ -943,19 +942,15 @@ func _start_arrow_drawing() -> void:
 	## Start drawing an arrow from the clicked square
 	var local_pos := board_container.get_local_mouse_position()
 	var board_pos := _pixel_to_board(local_pos)
-	print("[DEBUG] _start_arrow_drawing: local_pos=%s, board_pos=%s" % [local_pos, board_pos])
 
 	# Check if position is valid and has a piece
 	if not _is_valid_board_pos(board_pos):
-		print("[DEBUG] Invalid board position")
 		return
 
 	var piece := game_state.board.get_piece(board_pos) if game_state else null
 	if piece == null:
-		print("[DEBUG] No piece at %s" % board_pos)
 		return
 
-	print("[DEBUG] Starting arrow from piece at %s (type=%d)" % [board_pos, piece.type])
 	arrow_start_pos = board_pos
 	arrow_piece = piece
 	is_drawing_arrow = true
@@ -975,12 +970,13 @@ func _update_current_arrow() -> void:
 
 	# Check if target is valid for this piece's movement pattern
 	var is_valid := _is_valid_arrow_target(arrow_start_pos, target_pos, arrow_piece)
+	var is_knight := arrow_piece.type == Piece.Type.KNIGHT
 
 	# Update arrow visual
 	var start_pixel := _board_to_pixel(arrow_start_pos) + Vector2(square_size / 2, square_size / 2)
 	var end_pixel := _board_to_pixel(target_pos) + Vector2(square_size / 2, square_size / 2)
 
-	_update_arrow_visual(current_arrow, start_pixel, end_pixel, is_valid)
+	_update_arrow_visual(current_arrow, start_pixel, end_pixel, is_valid, is_knight)
 
 
 func _finish_arrow_drawing() -> void:
@@ -1054,7 +1050,7 @@ func _create_arrow_node() -> Node2D:
 	return arrow
 
 
-func _update_arrow_visual(arrow: Node2D, start: Vector2, end: Vector2, is_valid: bool) -> void:
+func _update_arrow_visual(arrow: Node2D, start: Vector2, end: Vector2, is_valid: bool, is_knight: bool = false) -> void:
 	## Update arrow visuals
 	var line: Line2D = arrow.get_node("Line")
 	var head: Polygon2D = arrow.get_node("Head")
@@ -1064,17 +1060,48 @@ func _update_arrow_visual(arrow: Node2D, start: Vector2, end: Vector2, is_valid:
 	line.default_color = color
 	head.color = color
 
-	# Line points (slightly shortened to make room for arrow head)
-	var direction := (end - start).normalized()
-	var arrow_length := start.distance_to(end)
 	var head_size := 20.0
+	var direction: Vector2
+	var final_end := end
 
-	if arrow_length > head_size:
-		line.clear_points()
+	line.clear_points()
+
+	if is_knight and is_valid:
+		# Knight arrows show L-shaped path
+		var dx := end.x - start.x
+		var dy := end.y - start.y
+		var abs_dx := absf(dx)
+		var abs_dy := absf(dy)
+
+		# Determine L-shape: go horizontal first if dx > dy, else vertical first
+		var corner: Vector2
+		if abs_dx > abs_dy:
+			# Move horizontal first, then vertical
+			corner = Vector2(end.x, start.y)
+		else:
+			# Move vertical first, then horizontal
+			corner = Vector2(start.x, end.y)
+
+		# Calculate final direction for arrow head
+		direction = (end - corner).normalized()
+		final_end = end - direction * head_size * 0.7
+
 		line.add_point(start)
-		line.add_point(end - direction * head_size * 0.7)
+		line.add_point(corner)
+		line.add_point(final_end)
+	else:
+		# Straight line for other pieces
+		direction = (end - start).normalized()
+		var arrow_length := start.distance_to(end)
 
-		# Arrow head triangle
+		if arrow_length > head_size:
+			line.add_point(start)
+			line.add_point(end - direction * head_size * 0.7)
+		else:
+			direction = Vector2.RIGHT  # Fallback
+
+	# Arrow head triangle
+	if line.get_point_count() > 0:
 		var perp := Vector2(-direction.y, direction.x)
 		head.polygon = PackedVector2Array([
 			end,
@@ -1082,7 +1109,6 @@ func _update_arrow_visual(arrow: Node2D, start: Vector2, end: Vector2, is_valid:
 			end - direction * head_size - perp * head_size * 0.5
 		])
 	else:
-		line.clear_points()
 		head.polygon = PackedVector2Array()
 
 	# Store metadata for duplicate detection
