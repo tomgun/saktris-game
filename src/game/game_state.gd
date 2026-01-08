@@ -182,15 +182,15 @@ func try_place_piece(column: int) -> bool:
 
 
 func can_place_piece() -> bool:
-	## Returns true if the current player has a piece to place AND has space on back row
+	## Returns true if the current player has a piece to place AND has valid placement
 	var arriving := arrival_manager.get_current_piece(current_player)
 	if arriving == null:
 		return false
 
-	# Check if any square on back row is empty
+	# Check if any square on back row is valid for this piece (includes bishop rule)
 	var row := 0 if current_player == Piece.Side.WHITE else 7
 	for col in range(Board.BOARD_SIZE):
-		if board.is_empty(Vector2i(col, row)):
+		if board.can_place_piece_at(Vector2i(col, row), arriving):
 			return true
 
 	return false

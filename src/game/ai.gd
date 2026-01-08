@@ -52,10 +52,15 @@ func _get_best_placement(game_state: GameState) -> Dictionary:
 	var best_column := -1
 	var best_score := -INF
 	var back_row := 0 if side == Piece.Side.WHITE else 7
+	var arriving := game_state.arrival_manager.get_current_piece(side)
+
+	if arriving == null:
+		return {"column": -1}
 
 	for col in range(Board.BOARD_SIZE):
 		var pos := Vector2i(col, back_row)
-		if game_state.board.is_empty(pos):
+		# Must check can_place_piece_at which includes bishop rule check
+		if game_state.board.can_place_piece_at(pos, arriving):
 			# Simulate placement and evaluate
 			var score := _evaluate_placement(game_state, col)
 
