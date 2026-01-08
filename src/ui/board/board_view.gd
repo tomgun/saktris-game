@@ -63,6 +63,7 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	# Handle right-click for arrow drawing
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		print("[DEBUG] Right-click detected: pressed=%s" % event.pressed)
 		if event.pressed:
 			_start_arrow_drawing()
 		else:
@@ -942,15 +943,19 @@ func _start_arrow_drawing() -> void:
 	## Start drawing an arrow from the clicked square
 	var local_pos := board_container.get_local_mouse_position()
 	var board_pos := _pixel_to_board(local_pos)
+	print("[DEBUG] _start_arrow_drawing: local_pos=%s, board_pos=%s" % [local_pos, board_pos])
 
 	# Check if position is valid and has a piece
 	if not _is_valid_board_pos(board_pos):
+		print("[DEBUG] Invalid board position")
 		return
 
 	var piece := game_state.board.get_piece(board_pos) if game_state else null
 	if piece == null:
+		print("[DEBUG] No piece at %s" % board_pos)
 		return
 
+	print("[DEBUG] Starting arrow from piece at %s (type=%d)" % [board_pos, piece.type])
 	arrow_start_pos = board_pos
 	arrow_piece = piece
 	is_drawing_arrow = true
