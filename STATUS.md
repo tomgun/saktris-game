@@ -2,10 +2,9 @@
 
 ## Next Tasks (Priority)
 
-1. **AI threading** - Separate AI calculations from UI thread (currently jams the UI)
-2. **Piece visuals** - Make pieces look more 3D with shading (skins optional/future)
-3. **Save/Load** - Persist game state, autosave functionality
-4. **Settings menu** - Configure arrival frequency, game modes
+1. **Piece visuals** - Make pieces look more 3D with shading (skins optional/future)
+2. **Save/Load** - Persist game state, autosave functionality
+3. **Settings menu** - Configure arrival frequency, game modes
 
 ---
 
@@ -26,6 +25,7 @@
   - Both Black and White arrival areas visible
   - Proper checkmate/king capture detection
   - Game title and credit on main screen
+  - Async AI calculation (no UI freeze, shows progress %)
 
 ## Known Issues
 - None critical
