@@ -102,7 +102,7 @@ $GODOT_HEAD_INCLUDE
 		</noscript>
 
 		<div id="status">
-			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="$GODOT_SPLASH" alt="">
+			<img id="status-splash" class="show-image--false fullsize--true use-filter--true" src="$GODOT_SPLASH" alt="">
 			<progress id="status-progress"></progress>
 			<div id="status-notice"></div>
 		</div>
@@ -113,10 +113,23 @@ const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 const engine = new Engine(GODOT_CONFIG);
 
-// Prevent context menu on entire document as backup
+// Prevent context menu and ensure right-click events reach Godot
 document.addEventListener('contextmenu', function(e) {
 	e.preventDefault();
 	return false;
+});
+
+// Prevent browser handling of right-click on canvas
+const canvas = document.getElementById('canvas');
+canvas.addEventListener('mousedown', function(e) {
+	if (e.button === 2) {
+		e.preventDefault();
+	}
+});
+canvas.addEventListener('mouseup', function(e) {
+	if (e.button === 2) {
+		e.preventDefault();
+	}
 });
 
 (function () {
