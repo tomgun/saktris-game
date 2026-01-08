@@ -24,10 +24,18 @@ var recent_collisions: Dictionary = {}  # Track recent collisions to avoid spark
 var dragging_sprite: PieceSprite = null  # Currently dragged piece
 var drag_was_new_selection: bool = false  # Track if drag_started created a new selection
 
+# Arrow drawing state
+var arrow_start_pos: Vector2i = Vector2i(-1, -1)  # Board position where arrow starts
+var arrow_piece: Piece = null  # Piece we're drawing arrows from
+var is_drawing_arrow: bool = false
+var planning_arrows: Array = []  # Persistent arrows drawn by player
+var current_arrow: Node2D = null  # Arrow being drawn right now
+
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: GridContainer = %SquaresGrid
 @onready var pieces_layer: Control = %PiecesLayer
 @onready var highlights_layer: Control = %HighlightsLayer
+@onready var arrows_layer: Control = %ArrowsLayer
 @onready var arrival_layer: Control = %ArrivalLayer
 @onready var hovering_piece: TextureRect = %HoveringPiece
 @onready var ghost_piece: TextureRect = %GhostPiece
@@ -53,8 +61,24 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Handle clicks for piece placement anywhere in the board column area
+	# Handle right-click for arrow drawing
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		if event.pressed:
+			_start_arrow_drawing()
+		else:
+			_finish_arrow_drawing()
+		get_viewport().set_input_as_handled()
+		return
+
+	# Update arrow while dragging
+	if event is InputEventMouseMotion and is_drawing_arrow:
+		_update_current_arrow()
+
+	# Clear arrows on left click (unless it's a game action)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if planning_arrows.size() > 0:
+			_clear_planning_arrows()
+
 		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn():
 			# Check if click is within or near the board area
 			var local_pos := board_container.get_local_mouse_position()
@@ -910,3 +934,205 @@ func _on_ai_turn_started() -> void:
 
 func _on_new_game_pressed() -> void:
 	new_game_requested.emit()
+
+
+# Arrow drawing for move planning
+
+func _start_arrow_drawing() -> void:
+	## Start drawing an arrow from the clicked square
+	var local_pos := board_container.get_local_mouse_position()
+	var board_pos := _pixel_to_board(local_pos)
+
+	# Check if position is valid and has a piece
+	if not _is_valid_board_pos(board_pos):
+		return
+
+	var piece := game_state.board.get_piece(board_pos) if game_state else null
+	if piece == null:
+		return
+
+	arrow_start_pos = board_pos
+	arrow_piece = piece
+	is_drawing_arrow = true
+
+	# Create the current arrow visual
+	current_arrow = _create_arrow_node()
+	arrows_layer.add_child(current_arrow)
+
+
+func _update_current_arrow() -> void:
+	## Update the arrow being drawn to follow mouse
+	if current_arrow == null or arrow_piece == null:
+		return
+
+	var local_pos := board_container.get_local_mouse_position()
+	var target_pos := _pixel_to_board(local_pos)
+
+	# Check if target is valid for this piece's movement pattern
+	var is_valid := _is_valid_arrow_target(arrow_start_pos, target_pos, arrow_piece)
+
+	# Update arrow visual
+	var start_pixel := _board_to_pixel(arrow_start_pos) + Vector2(square_size / 2, square_size / 2)
+	var end_pixel := _board_to_pixel(target_pos) + Vector2(square_size / 2, square_size / 2)
+
+	_update_arrow_visual(current_arrow, start_pixel, end_pixel, is_valid)
+
+
+func _finish_arrow_drawing() -> void:
+	## Finish drawing and potentially save the arrow
+	if not is_drawing_arrow:
+		return
+
+	is_drawing_arrow = false
+
+	if current_arrow == null or arrow_piece == null:
+		return
+
+	var local_pos := board_container.get_local_mouse_position()
+	var target_pos := _pixel_to_board(local_pos)
+
+	# Only save valid arrows that go to a different square
+	if target_pos != arrow_start_pos and _is_valid_arrow_target(arrow_start_pos, target_pos, arrow_piece):
+		# Check if this arrow already exists (toggle off)
+		var existing_idx := _find_existing_arrow(arrow_start_pos, target_pos)
+		if existing_idx >= 0:
+			# Remove existing arrow
+			planning_arrows[existing_idx].queue_free()
+			planning_arrows.remove_at(existing_idx)
+			current_arrow.queue_free()
+		else:
+			# Keep this arrow
+			planning_arrows.append(current_arrow)
+	else:
+		# Invalid or same square - remove
+		current_arrow.queue_free()
+
+	current_arrow = null
+	arrow_piece = null
+	arrow_start_pos = Vector2i(-1, -1)
+
+
+func _find_existing_arrow(from: Vector2i, to: Vector2i) -> int:
+	## Find if an arrow already exists between these squares
+	for i in range(planning_arrows.size()):
+		var arrow = planning_arrows[i]
+		if arrow.has_meta("from") and arrow.has_meta("to"):
+			if arrow.get_meta("from") == from and arrow.get_meta("to") == to:
+				return i
+	return -1
+
+
+func _clear_planning_arrows() -> void:
+	## Clear all planning arrows
+	for arrow in planning_arrows:
+		if is_instance_valid(arrow):
+			arrow.queue_free()
+	planning_arrows.clear()
+
+
+func _create_arrow_node() -> Node2D:
+	## Create a new arrow visual node
+	var arrow := Node2D.new()
+	var line := Line2D.new()
+	line.name = "Line"
+	line.width = 12.0
+	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	line.antialiased = true
+	arrow.add_child(line)
+
+	# Arrow head (triangle)
+	var head := Polygon2D.new()
+	head.name = "Head"
+	arrow.add_child(head)
+
+	return arrow
+
+
+func _update_arrow_visual(arrow: Node2D, start: Vector2, end: Vector2, is_valid: bool) -> void:
+	## Update arrow visuals
+	var line: Line2D = arrow.get_node("Line")
+	var head: Polygon2D = arrow.get_node("Head")
+
+	# Color based on validity
+	var color := Color(0.2, 0.7, 0.3, 0.8) if is_valid else Color(0.7, 0.3, 0.2, 0.5)
+	line.default_color = color
+	head.color = color
+
+	# Line points (slightly shortened to make room for arrow head)
+	var direction := (end - start).normalized()
+	var arrow_length := start.distance_to(end)
+	var head_size := 20.0
+
+	if arrow_length > head_size:
+		line.clear_points()
+		line.add_point(start)
+		line.add_point(end - direction * head_size * 0.7)
+
+		# Arrow head triangle
+		var perp := Vector2(-direction.y, direction.x)
+		head.polygon = PackedVector2Array([
+			end,
+			end - direction * head_size + perp * head_size * 0.5,
+			end - direction * head_size - perp * head_size * 0.5
+		])
+	else:
+		line.clear_points()
+		head.polygon = PackedVector2Array()
+
+	# Store metadata for duplicate detection
+	var from_pos := _pixel_to_board(start - Vector2(square_size / 2, square_size / 2))
+	var to_pos := _pixel_to_board(end - Vector2(square_size / 2, square_size / 2))
+	arrow.set_meta("from", from_pos)
+	arrow.set_meta("to", to_pos)
+
+
+func _is_valid_board_pos(pos: Vector2i) -> bool:
+	return pos.x >= 0 and pos.x < BOARD_SIZE and pos.y >= 0 and pos.y < BOARD_SIZE
+
+
+func _is_valid_arrow_target(from: Vector2i, to: Vector2i, piece: Piece) -> bool:
+	## Check if moving from->to matches this piece's movement pattern (ignoring blockers)
+	if not _is_valid_board_pos(to):
+		return false
+	if from == to:
+		return false
+
+	var dx := to.x - from.x
+	var dy := to.y - from.y
+	var abs_dx := absi(dx)
+	var abs_dy := absi(dy)
+
+	match piece.type:
+		Piece.Type.KING:
+			# One square in any direction
+			return abs_dx <= 1 and abs_dy <= 1
+
+		Piece.Type.QUEEN:
+			# Straight or diagonal any distance
+			return (dx == 0 or dy == 0) or (abs_dx == abs_dy)
+
+		Piece.Type.ROOK:
+			# Straight lines only
+			return dx == 0 or dy == 0
+
+		Piece.Type.BISHOP:
+			# Diagonal only
+			return abs_dx == abs_dy and abs_dx > 0
+
+		Piece.Type.KNIGHT:
+			# L-shape: 2+1 or 1+2
+			return (abs_dx == 2 and abs_dy == 1) or (abs_dx == 1 and abs_dy == 2)
+
+		Piece.Type.PAWN:
+			# Forward 1-2 squares or diagonal capture (1 square)
+			var forward := 1 if piece.side == Piece.Side.WHITE else -1
+			# Forward moves
+			if dx == 0 and (dy == forward or dy == forward * 2):
+				return true
+			# Diagonal captures
+			if abs_dx == 1 and dy == forward:
+				return true
+			return false
+
+	return false

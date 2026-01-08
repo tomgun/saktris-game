@@ -20,6 +20,7 @@
   - Motion trails for long-distance slider moves
   - Hovering piece placement UX
   - Drag-and-drop AND click-to-move piece movement
+  - Arrow drawing for move planning (right-click drag)
   - Web export with GitHub Pages deployment
   - Both Black and White arrival areas visible
   - Proper checkmate/king capture detection
@@ -35,6 +36,8 @@
 - F-0004: Piece arrival system
 - F-0005: Turn system with checkmate detection
 - F-0008: AI opponent
+- F-0010: Arrow drawing for move planning
+- F-0011: Special chess rules (castling, en passant, promotion)
 - F-0012: Physics bump mode (sparks + motion trails)
 - F-0014: Bishop placement rule
 - Web deployment pipeline
