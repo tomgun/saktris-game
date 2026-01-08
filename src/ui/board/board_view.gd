@@ -74,7 +74,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and is_drawing_arrow:
 		_update_current_arrow()
 
-	# Clear arrows on left click (unless it's a game action)
+	# Clear arrows on left click
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if planning_arrows.size() > 0:
 			_clear_planning_arrows()
