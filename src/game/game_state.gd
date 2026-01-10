@@ -4,7 +4,7 @@ extends RefCounted
 
 const ChessAIClass := preload("res://src/game/ai.gd")
 
-enum Status { PLAYING, CHECK, CHECKMATE, STALEMATE, DRAW }
+enum Status { PLAYING, CHECK, CHECKMATE, STALEMATE, DRAW, TIMEOUT }
 enum GameMode { TWO_PLAYER, VS_AI }
 
 var board: Board
@@ -19,6 +19,10 @@ var arrival_manager: PieceArrivalManager
 ## Draw detection
 var draw_detector: DrawDetector
 var draw_reason: DrawDetector.DrawReason = DrawDetector.DrawReason.NONE
+
+## Chess clock (optional, null if untimed)
+var chess_clock: ChessClock = null
+var time_control_preset: String = ""
 
 ## AI opponent
 var ai = null  # ChessAI instance
@@ -43,6 +47,8 @@ signal ai_thinking_started()
 signal ai_thinking_finished()
 signal ai_progress(percent: float)
 signal triplet_clearing(triplet_positions: Array, victim_pos: Vector2i, direction: Vector2i)
+signal clock_time_updated(white_time: float, black_time: float)
+signal clock_low_time(side: int, seconds: float)
 
 ## AI calculation state
 var _ai_calculating := false
@@ -58,6 +64,29 @@ func _init() -> void:
 func _connect_board_signals() -> void:
 	board.piece_moved.connect(_on_piece_moved)
 	board.piece_captured.connect(_on_piece_captured)
+
+
+func _connect_clock_signals() -> void:
+	if chess_clock:
+		chess_clock.time_expired.connect(_on_clock_time_expired)
+		chess_clock.time_updated.connect(_on_clock_time_updated)
+		chess_clock.low_time_warning.connect(_on_clock_low_time_warning)
+
+
+func _on_clock_time_expired(side: int) -> void:
+	## Handle clock time expiry - the player who ran out of time loses
+	status = Status.TIMEOUT
+	status_changed.emit(status)
+	var winner := Piece.Side.BLACK if side == Piece.Side.WHITE else Piece.Side.WHITE
+	game_over.emit(winner, "timeout")
+
+
+func _on_clock_time_updated(white_time: float, black_time: float) -> void:
+	clock_time_updated.emit(white_time, black_time)
+
+
+func _on_clock_low_time_warning(side: int, seconds: float) -> void:
+	clock_low_time.emit(side, seconds)
 
 
 func start_new_game(settings: Dictionary = {}) -> void:
@@ -79,6 +108,20 @@ func start_new_game(settings: Dictionary = {}) -> void:
 	arrival_manager.initialize(arrival_mode, arrival_frequency)
 
 	game_mode = settings.get("game_mode", GameMode.TWO_PLAYER)
+
+	# Initialize chess clock if time control specified
+	time_control_preset = settings.get("time_control", "")
+	if time_control_preset != "":
+		chess_clock = ChessClock.new()
+		if not chess_clock.setup_from_preset(time_control_preset):
+			# Custom time control
+			var custom_time: float = settings.get("time_seconds", 300.0)
+			var custom_increment: float = settings.get("increment_seconds", 0.0)
+			chess_clock.setup(custom_time, custom_increment)
+		_connect_clock_signals()
+		chess_clock.start()
+	else:
+		chess_clock = null
 
 	# Initialize AI if playing against computer
 	if game_mode == GameMode.VS_AI:
@@ -169,18 +212,28 @@ func _finish_turn(was_capture: bool = false, was_pawn_move: bool = false) -> voi
 	_update_game_status()
 
 	if status == Status.CHECKMATE:
+		if chess_clock:
+			chess_clock.pause()
 		game_over.emit(current_player, "checkmate")
 		return
 	elif status == Status.STALEMATE:
+		if chess_clock:
+			chess_clock.pause()
 		game_over.emit(Piece.Side.WHITE, "stalemate")  # Draw
 		return
 	elif status == Status.DRAW:
+		if chess_clock:
+			chess_clock.pause()
 		var reason_str := DrawDetector.get_draw_reason_string(draw_reason)
 		game_over.emit(Piece.Side.WHITE, reason_str)  # Draw
 		return
 
 	# Record position after the move for repetition tracking
 	draw_detector.record_position(board, _get_opponent(current_player))
+
+	# Switch chess clock (adds increment to player who just moved)
+	if chess_clock:
+		chess_clock.switch_side()
 
 	# Switch turns
 	_switch_turn()
@@ -557,9 +610,48 @@ func get_legal_moves_for_current_player() -> Dictionary:
 	return all_moves
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Chess Clock Management
+# ─────────────────────────────────────────────────────────────────────────────
+
+func has_clock() -> bool:
+	## Returns true if game has time control
+	return chess_clock != null
+
+
+func tick_clock(delta: float) -> void:
+	## Update clock - call this from game loop
+	if chess_clock and is_game_in_progress():
+		chess_clock.tick(delta)
+
+
+func is_game_in_progress() -> bool:
+	## Returns true if game is still being played
+	return status == Status.PLAYING or status == Status.CHECK
+
+
+func get_time_remaining(side: int) -> float:
+	## Get remaining time for a side (returns -1 if no clock)
+	if chess_clock:
+		return chess_clock.get_time_remaining(side)
+	return -1.0
+
+
+func pause_clock() -> void:
+	## Pause the chess clock
+	if chess_clock:
+		chess_clock.pause()
+
+
+func resume_clock() -> void:
+	## Resume the chess clock
+	if chess_clock:
+		chess_clock.resume()
+
+
 func to_dict() -> Dictionary:
 	## Serialize game state for save/load
-	return {
+	var data := {
 		"board": board.to_dict(),
 		"current_player": current_player,
 		"move_count": move_count,
@@ -569,8 +661,12 @@ func to_dict() -> Dictionary:
 		"move_history": move_history,
 		"history_index": history_index,
 		"draw_detector": draw_detector.to_dict(),
-		"draw_reason": draw_reason
+		"draw_reason": draw_reason,
+		"time_control_preset": time_control_preset
 	}
+	if chess_clock:
+		data["chess_clock"] = chess_clock.to_dict()
+	return data
 
 
 static func from_dict(data: Dictionary) -> GameState:
@@ -587,5 +683,9 @@ static func from_dict(data: Dictionary) -> GameState:
 	if data.has("draw_detector"):
 		state.draw_detector = DrawDetector.from_dict(data["draw_detector"])
 	state.draw_reason = data.get("draw_reason", DrawDetector.DrawReason.NONE)
+	state.time_control_preset = data.get("time_control_preset", "")
+	if data.has("chess_clock"):
+		state.chess_clock = ChessClock.from_dict(data["chess_clock"])
+		state._connect_clock_signals()
 	state._connect_board_signals()
 	return state
