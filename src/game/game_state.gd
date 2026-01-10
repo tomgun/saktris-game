@@ -16,6 +16,10 @@ var game_mode: GameMode = GameMode.TWO_PLAYER
 ## Piece arrival system
 var arrival_manager: PieceArrivalManager
 
+## Draw detection
+var draw_detector: DrawDetector
+var draw_reason: DrawDetector.DrawReason = DrawDetector.DrawReason.NONE
+
 ## AI opponent
 var ai = null  # ChessAI instance
 var ai_side: int = Piece.Side.BLACK
@@ -47,6 +51,7 @@ var _ai_calculating := false
 func _init() -> void:
 	board = Board.new()
 	arrival_manager = PieceArrivalManager.new()
+	draw_detector = DrawDetector.new()
 	_connect_board_signals()
 
 
@@ -65,6 +70,8 @@ func start_new_game(settings: Dictionary = {}) -> void:
 	move_history.clear()
 	history_index = -1
 	pending_promotion_pos = Vector2i(-1, -1)
+	draw_detector.reset()
+	draw_reason = DrawDetector.DrawReason.NONE
 
 	# Configure arrival manager
 	var arrival_mode: int = settings.get("arrival_mode", PieceArrivalManager.Mode.RANDOM_SAME)
@@ -100,9 +107,15 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 	if piece == null or piece.side != current_player:
 		return false
 
+	# Track piece type before move for draw detection
+	var was_pawn_move := (piece.type == Piece.Type.PAWN)
+
 	var result := board.execute_move(from, to)
 	if not result["valid"]:
 		return false
+
+	# Track capture for draw detection
+	var was_capture := (result["captured"] != null)
 
 	# Record move in history
 	_record_move(result)
@@ -126,7 +139,7 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 				return true
 
 	# Finish the turn (check game status and switch)
-	_finish_turn()
+	_finish_turn(was_capture, was_pawn_move)
 
 	return true
 
@@ -141,14 +154,17 @@ func complete_promotion(piece_type: int) -> bool:
 
 	pending_promotion_pos = Vector2i(-1, -1)
 
-	# Now finish the turn
-	_finish_turn()
+	# Now finish the turn (promotion is always a pawn move)
+	_finish_turn(false, true)
 
 	return true
 
 
-func _finish_turn() -> void:
+func _finish_turn(was_capture: bool = false, was_pawn_move: bool = false) -> void:
 	## Common turn-ending logic after a move (or promotion)
+	# Update draw detection
+	draw_detector.on_move_made(was_capture, was_pawn_move)
+
 	# Check for game end conditions
 	_update_game_status()
 
@@ -158,6 +174,13 @@ func _finish_turn() -> void:
 	elif status == Status.STALEMATE:
 		game_over.emit(Piece.Side.WHITE, "stalemate")  # Draw
 		return
+	elif status == Status.DRAW:
+		var reason_str := DrawDetector.get_draw_reason_string(draw_reason)
+		game_over.emit(Piece.Side.WHITE, reason_str)  # Draw
+		return
+
+	# Record position after the move for repetition tracking
+	draw_detector.record_position(board, _get_opponent(current_player))
 
 	# Switch turns
 	_switch_turn()
@@ -297,6 +320,24 @@ func _process_piece_arrival() -> void:
 func _update_game_status() -> void:
 	var opponent := Piece.Side.BLACK if current_player == Piece.Side.WHITE else Piece.Side.WHITE
 
+	# Check for draw conditions first
+	# Note: In Saktris, insufficient material draw only applies when no more pieces can arrive
+	var pieces_can_still_arrive := arrival_manager.has_pieces_remaining(Piece.Side.WHITE) or \
+		arrival_manager.has_pieces_remaining(Piece.Side.BLACK) or \
+		arrival_manager.get_current_piece(Piece.Side.WHITE) != null or \
+		arrival_manager.get_current_piece(Piece.Side.BLACK) != null
+
+	draw_reason = draw_detector.check_all_draws(board, opponent)
+
+	# If it's insufficient material, only apply if no more pieces can arrive
+	if draw_reason == DrawDetector.DrawReason.INSUFFICIENT_MATERIAL and pieces_can_still_arrive:
+		draw_reason = DrawDetector.DrawReason.NONE
+
+	if draw_reason != DrawDetector.DrawReason.NONE:
+		status = Status.DRAW
+		status_changed.emit(status)
+		return
+
 	# In Saktris, if opponent has pieces to place or remaining in queue,
 	# they might be able to escape stalemate by placing and then moving
 	var opponent_has_pieces_coming := arrival_manager.has_pieces_remaining(opponent) or \
@@ -322,6 +363,11 @@ func _update_game_status() -> void:
 			status = Status.PLAYING
 
 	status_changed.emit(status)
+
+
+func _get_opponent(side: int) -> int:
+	## Returns the opponent side
+	return Piece.Side.BLACK if side == Piece.Side.WHITE else Piece.Side.WHITE
 
 
 func _can_placement_block_check(side: int) -> bool:
@@ -521,7 +567,9 @@ func to_dict() -> Dictionary:
 		"game_mode": game_mode,
 		"arrival_manager": arrival_manager.to_dict(),
 		"move_history": move_history,
-		"history_index": history_index
+		"history_index": history_index,
+		"draw_detector": draw_detector.to_dict(),
+		"draw_reason": draw_reason
 	}
 
 
@@ -536,5 +584,8 @@ static func from_dict(data: Dictionary) -> GameState:
 	state.arrival_manager = PieceArrivalManager.from_dict(data["arrival_manager"])
 	state.move_history = data.get("move_history", [])
 	state.history_index = data.get("history_index", -1)
+	if data.has("draw_detector"):
+		state.draw_detector = DrawDetector.from_dict(data["draw_detector"])
+	state.draw_reason = data.get("draw_reason", DrawDetector.DrawReason.NONE)
 	state._connect_board_signals()
 	return state
