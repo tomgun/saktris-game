@@ -471,6 +471,59 @@ func can_place_piece_at(pos: Vector2i, piece: Piece) -> bool:
 	return true
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Triplet Detection (Three-in-a-row)
+# ─────────────────────────────────────────────────────────────────────────────
+
+func find_triplet_at(pos: Vector2i) -> Dictionary:
+	## Check if position is part of a triplet (3 same-type pieces in row/column)
+	## Returns {positions: Array[Vector2i], direction: "horizontal"|"vertical"} or empty
+	var piece := get_piece(pos)
+	if piece == null:
+		return {}
+
+	var piece_type := piece.type
+
+	# Check horizontal
+	var h_positions := _find_consecutive_same_type(pos, Vector2i(1, 0), piece_type)
+	if h_positions.size() >= 3:
+		return {"positions": h_positions.slice(0, 3), "direction": "horizontal"}
+
+	# Check vertical
+	var v_positions := _find_consecutive_same_type(pos, Vector2i(0, 1), piece_type)
+	if v_positions.size() >= 3:
+		return {"positions": v_positions.slice(0, 3), "direction": "vertical"}
+
+	return {}
+
+
+func _find_consecutive_same_type(center: Vector2i, dir: Vector2i, piece_type: int) -> Array[Vector2i]:
+	## Find all consecutive pieces of same type in both directions from center
+	var positions: Array[Vector2i] = [center]
+
+	# Search in positive direction
+	var check := center + dir
+	while is_valid_position(check):
+		var p := get_piece(check)
+		if p and p.type == piece_type:
+			positions.append(check)
+			check += dir
+		else:
+			break
+
+	# Search in negative direction
+	check = center - dir
+	while is_valid_position(check):
+		var p := get_piece(check)
+		if p and p.type == piece_type:
+			positions.insert(0, check)
+			check -= dir
+		else:
+			break
+
+	return positions
+
+
 func to_dict() -> Dictionary:
 	## Serialize board state for save/load
 	var data := {
@@ -481,7 +534,10 @@ func to_dict() -> Dictionary:
 		var row_data := []
 		for col in range(BOARD_SIZE):
 			var piece := get_piece(Vector2i(col, row))
-			row_data.append(piece.to_dict() if piece else null)
+			if piece:
+				row_data.append(piece.to_dict())
+			else:
+				row_data.append(null)
 		data["squares"].append(row_data)
 	return data
 

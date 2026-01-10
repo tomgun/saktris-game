@@ -57,13 +57,13 @@ func _init() -> void:
 	rng = RandomNumberGenerator.new()
 
 
-func initialize(p_mode: Mode, p_frequency: int = 2, seed: int = -1) -> void:
+func initialize(p_mode: Mode, p_frequency: int = 2, p_seed: int = -1) -> void:
 	## Initialize the arrival system with given settings
 	mode = p_mode
 	arrival_frequency = p_frequency
 
-	if seed >= 0:
-		rng.seed = seed
+	if p_seed >= 0:
+		rng.seed = p_seed
 	else:
 		rng.randomize()
 
@@ -186,8 +186,8 @@ func get_current_piece(color: int) -> Piece:
 	return white_current if color == Piece.Side.WHITE else black_current
 
 
-func get_next_piece_preview(color: int) -> Piece.Type:
-	## Returns the type of the next piece in queue (for preview)
+func get_next_piece_preview(color: int) -> int:
+	## Returns the type of the next piece in queue (for preview), or -1 if none
 	var queue := white_queue if color == Piece.Side.WHITE else black_queue
 	if queue.is_empty():
 		return -1  # Invalid
@@ -261,6 +261,13 @@ func has_pieces_remaining(color: int) -> bool:
 
 func to_dict() -> Dictionary:
 	## Serialize for save/load
+	var white_current_data = null
+	var black_current_data = null
+	if white_current != null:
+		white_current_data = white_current.to_dict()
+	if black_current != null:
+		black_current_data = black_current.to_dict()
+
 	return {
 		"mode": mode,
 		"arrival_frequency": arrival_frequency,
@@ -268,8 +275,8 @@ func to_dict() -> Dictionary:
 		"black_queue": black_queue,
 		"white_pool": white_pool,
 		"black_pool": black_pool,
-		"white_current": white_current.to_dict() if white_current else null,
-		"black_current": black_current.to_dict() if black_current else null,
+		"white_current": white_current_data,
+		"black_current": black_current_data,
 		"white_pieces_given": white_pieces_given,
 		"black_pieces_given": black_pieces_given,
 		"white_moves_made": white_moves_made,

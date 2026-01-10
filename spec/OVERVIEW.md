@@ -1,42 +1,52 @@
-# Overview (Template)
+# Overview
 
-Purpose: one place to understand the **vision**, **current state**, and **where to find truth**.
+Purpose: understand the **vision**, **current state**, and **where to find truth**.
+
+---
 
 ## Vocabulary
-- **Feature (F-####)** is the **canonical unit** in this framework: a shippable capability with acceptance criteria and test notes. Features live in `spec/FEATURES.md`.
-- **Requirement (optional)** is an additional way to state needs/outcomes (“what must be true”). Requirements can live in `spec/PRD.md` and be linked from features.
-- **NFR (NFR-####)** are non-functional requirements: cross-cutting constraints (security, latency, compliance, realtime safety, reliability). NFRs live in `spec/NFR.md`.
-- Acceptance criteria for each feature live in `spec/acceptance/F-####.md`.
+- **Features (F-####)**: Canonical units of shippable game capabilities with acceptance criteria
+- **NFRs (NFR-####)**: Cross-cutting constraints (performance, reliability)
+- **Requirements**: Not used separately—captured as feature acceptance criteria
 
-## Recommended default
-- If you want minimal ceremony: **use Features only** (treat “requirements” as part of each feature’s acceptance criteria).
-- If you need stronger traceability or many cross-cutting constraints: use **Requirements + Features** and maintain an explicit mapping.
+---
 
 ## Vision (high level)
-- What are we building:
-- Who is it for:
-- What “success” looks like:
+- **What are we building**: Saktris - a chess+tetris hybrid where pieces arrive one-by-one onto the board
+- **Who is it for**: Casual strategy game players who enjoy chess variants
+- **What "success" looks like**: Playable game on web/mobile with unique Tetris-inspired mechanics
 
-## Current state (today)
-- Current version/release (optional):
-- What works:
-- What’s in progress:
-- What’s risky:
+## Current state (2026-01-08)
+- **Current version**: v0.1.0 (playable alpha)
+- **What works**:
+  - Two-player and vs AI modes
+  - Piece arrival system with configurable frequency
+  - All standard chess rules (castling, en passant, promotion)
+  - Physics bump animations with collision effects
+  - Triplet clear rule (3-in-a-row clearing)
+  - Sound effects system
+  - Arrow drawing for move planning
+- **What's in progress**:
+  - Settings menu UI
+  - Save/load system
+- **What's risky**:
+  - Mobile performance (untested)
+  - AI difficulty tuning
 
 ## Architecture (map)
-- Read: `spec/TECH_SPEC.md`
-- Entry points:
-- Major components:
+- **Read**: `spec/TECH_SPEC.md`
+- **Entry points**:
+  - `src/main.gd` - Game initialization
+  - `src/ui/board/board_view.gd` - Main game UI
+- **Major components**:
+  - `src/game/` - Core game logic (board, pieces, rules, AI)
+  - `src/ui/` - User interface components
+  - `src/systems/` - Autoloads (settings, audio, themes)
 
 ## Feature registry (source of truth)
-- Read: `spec/FEATURES.md`
-- Each feature has:
-  - a stable ID (e.g. `F-####`)
-  - status (planned/in_progress/shipped/deprecated)
-  - acceptance criteria location
-  - test coverage notes
+- **Read**: `spec/FEATURES.md`
+- 15 features defined (11 shipped, 4 planned)
+- Each feature has acceptance criteria in `spec/acceptance/`
 
 ## Lessons & caveats
-- Read: `spec/LESSONS.md` and `spec/adr/*`
-
-
+- **Read**: `spec/LESSONS.md` and `spec/adr/`

@@ -88,7 +88,6 @@ func get_save_list() -> Array[String]:
 
 func delete_save(save_name: String) -> bool:
 	## Deletes a saved game
-	var save_path := "user://saves/%s.json" % save_name
 	var dir := DirAccess.open("user://saves")
 	if dir == null:
 		return false

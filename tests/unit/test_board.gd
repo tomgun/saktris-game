@@ -438,3 +438,103 @@ func test_en_passant_cleared_after_move() -> void:
 
 	# En passant target should be cleared
 	assert_eq(board.en_passant_target, Vector2i(-1, -1))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# F-0014: Bishop Placement Rule Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+func test_bishop_placement_first_bishop_allowed() -> void:
+	## AC1: First bishop can be placed on any empty square
+	var bishop := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+
+	# Light square (0,0) - should succeed
+	assert_true(board.can_place_piece_at(Vector2i(0, 0), bishop))
+	assert_true(board.place_piece(Vector2i(0, 0), bishop))
+
+
+func test_bishop_placement_same_color_blocked() -> void:
+	## AC1: Cannot place second bishop on same color square
+	var bishop1 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var bishop2 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+
+	# Place first bishop on light square (0,0)
+	board.place_piece(Vector2i(0, 0), bishop1)
+
+	# Try to place second bishop on another light square (2,0)
+	assert_false(board.can_place_piece_at(Vector2i(2, 0), bishop2))
+	assert_false(board.place_piece(Vector2i(2, 0), bishop2))
+
+
+func test_bishop_placement_opposite_color_allowed() -> void:
+	## AC1: Can place second bishop on opposite color square
+	var bishop1 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var bishop2 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+
+	# Place first bishop on light square (0,0)
+	board.place_piece(Vector2i(0, 0), bishop1)
+
+	# Place second bishop on dark square (1,0) - should succeed
+	assert_true(board.can_place_piece_at(Vector2i(1, 0), bishop2))
+	assert_true(board.place_piece(Vector2i(1, 0), bishop2))
+
+
+func test_bishop_placement_dark_squares_blocked() -> void:
+	## AC1: Both dark-squared bishops blocked after first
+	var bishop1 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var bishop2 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+
+	# Place first bishop on dark square (1,0)
+	board.place_piece(Vector2i(1, 0), bishop1)
+
+	# Try various dark squares - all should be blocked
+	assert_false(board.can_place_piece_at(Vector2i(3, 0), bishop2))  # dark (3+0=3, odd)
+	assert_false(board.can_place_piece_at(Vector2i(0, 1), bishop2))  # dark (0+1=1, odd)
+	assert_false(board.can_place_piece_at(Vector2i(3, 2), bishop2))  # dark (3+2=5, odd)
+
+
+func test_bishop_placement_per_player_independent() -> void:
+	## AC3: Rule applies per player - opponent's bishops don't affect you
+	var white_bishop := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var black_bishop := Piece.new(Piece.Type.BISHOP, Piece.Side.BLACK)
+
+	# Place white bishop on light square (0,0)
+	board.place_piece(Vector2i(0, 0), white_bishop)
+
+	# Black can still place on light square (2,0)
+	assert_true(board.can_place_piece_at(Vector2i(2, 0), black_bishop))
+	assert_true(board.place_piece(Vector2i(2, 0), black_bishop))
+
+
+func test_bishop_placement_both_players_restricted() -> void:
+	## AC3: Both players get their own restriction
+	var white_bishop1 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var white_bishop2 := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var black_bishop1 := Piece.new(Piece.Type.BISHOP, Piece.Side.BLACK)
+	var black_bishop2 := Piece.new(Piece.Type.BISHOP, Piece.Side.BLACK)
+
+	# White places on light square
+	board.place_piece(Vector2i(0, 0), white_bishop1)
+	# Black places on dark square
+	board.place_piece(Vector2i(1, 0), black_bishop1)
+
+	# White blocked from light squares, can use dark
+	assert_false(board.can_place_piece_at(Vector2i(4, 0), white_bishop2))  # light
+	assert_true(board.can_place_piece_at(Vector2i(3, 0), white_bishop2))   # dark
+
+	# Black blocked from dark squares, can use light
+	assert_false(board.can_place_piece_at(Vector2i(5, 0), black_bishop2))  # dark
+	assert_true(board.can_place_piece_at(Vector2i(6, 0), black_bishop2))   # light
+
+
+func test_non_bishop_placement_unrestricted() -> void:
+	## Other pieces should not be affected by bishop rule
+	var bishop := Piece.new(Piece.Type.BISHOP, Piece.Side.WHITE)
+	var rook := Piece.new(Piece.Type.ROOK, Piece.Side.WHITE)
+
+	# Place bishop on light square
+	board.place_piece(Vector2i(0, 0), bishop)
+
+	# Rook can still be placed on any light square
+	assert_true(board.can_place_piece_at(Vector2i(2, 0), rook))
+	assert_true(board.place_piece(Vector2i(2, 0), rook))

@@ -176,6 +176,7 @@ func test_alternating_piece_arrivals() -> void:
 			continue
 
 		# No piece to place - make a move (find any piece that can move)
+		var moved := false
 		for r in range(8):
 			for c in range(8):
 				var pos := Vector2i(c, r)
@@ -184,10 +185,10 @@ func test_alternating_piece_arrivals() -> void:
 					var moves := game.board.get_legal_moves(pos)
 					if moves.size() > 0:
 						game.try_move(pos, moves[0])
+						moved = true
 						break
-			else:
-				continue
-			break
+			if moved:
+				break
 
 		# Check if both have 3 pieces
 		if white_pieces_received >= 3 and black_pieces_received >= 3:

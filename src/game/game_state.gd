@@ -38,6 +38,7 @@ signal ai_move_made(move_data: Dictionary)
 signal ai_thinking_started()
 signal ai_thinking_finished()
 signal ai_progress(percent: float)
+signal triplet_clearing(triplet_positions: Array, victim_pos: Vector2i, direction: Vector2i)
 
 ## AI calculation state
 var _ai_calculating := false
@@ -116,6 +117,13 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 		pending_promotion_pos = to
 		promotion_needed.emit(to, current_player)
 		return true  # Move successful, but waiting for promotion choice
+
+	# Check for triplet clear (before finishing turn)
+	if Settings.triplet_clear_enabled:
+		if _check_and_execute_triplet_clear(to):
+			# If game ended due to king capture, don't finish turn
+			if status == Status.CHECKMATE:
+				return true
 
 	# Finish the turn (check game status and switch)
 	_finish_turn()
@@ -362,12 +370,123 @@ func _record_move(move_data: Dictionary) -> void:
 	move_executed.emit(move_data)
 
 
-func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
+func get_move_order_for_positions(positions: Array[Vector2i]) -> Array[Vector2i]:
+	## Return positions sorted by when they were last moved (oldest first)
+	## Positions with no move history come first (index = -1)
+	var moves_with_time := []
+	for pos in positions:
+		var move_index := -1
+		for i in range(move_history.size() - 1, -1, -1):
+			if move_history[i]["to"] == pos:
+				move_index = i
+				break
+		moves_with_time.append({"pos": pos, "index": move_index})
+
+	moves_with_time.sort_custom(func(a, b): return a["index"] < b["index"])
+
+	var result: Array[Vector2i] = []
+	for item in moves_with_time:
+		result.append(item["pos"])
+	return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triplet Clear (Three-in-a-row)
+# ─────────────────────────────────────────────────────────────────────────────
+
+func _check_and_execute_triplet_clear(moved_to: Vector2i) -> bool:
+	## Check if the move created a triplet and execute clearing
+	## Returns true if a triplet was cleared
+	var triplet_data := board.find_triplet_at(moved_to)
+	if triplet_data.is_empty():
+		return false
+
+	var positions: Array[Vector2i] = []
+	for pos in triplet_data["positions"]:
+		positions.append(pos)
+	var is_horizontal: bool = triplet_data["direction"] == "horizontal"
+
+	# Determine direction based on last moved piece
+	var sorted_by_move := get_move_order_for_positions(positions)
+	var pusher_pos: Vector2i = sorted_by_move[-1]  # Last moved
+
+	# If pusher is middle, use second-last
+	if positions.size() == 3:
+		var middle_pos := positions[1]
+		if pusher_pos == middle_pos and sorted_by_move.size() >= 2:
+			pusher_pos = sorted_by_move[-2]
+
+	# Calculate movement direction (away from pusher)
+	var move_dir: Vector2i
+	if is_horizontal:
+		# Pusher pushes others in opposite direction
+		if pusher_pos.x == positions[0].x:
+			move_dir = Vector2i(1, 0)  # Pusher on left, push right
+		elif pusher_pos.x == positions[-1].x:
+			move_dir = Vector2i(-1, 0)  # Pusher on right, push left
+		else:
+			# Pusher in middle - use second-last to determine
+			move_dir = Vector2i(-1, 0) if pusher_pos.x > positions[0].x else Vector2i(1, 0)
+	else:
+		if pusher_pos.y == positions[0].y:
+			move_dir = Vector2i(0, 1)
+		elif pusher_pos.y == positions[-1].y:
+			move_dir = Vector2i(0, -1)
+		else:
+			move_dir = Vector2i(0, -1) if pusher_pos.y > positions[0].y else Vector2i(0, 1)
+
+	# Find first victim in movement direction
+	var victim_pos := _find_first_piece_in_direction(positions, move_dir)
+
+	# Check for king capture = win
+	if victim_pos != Vector2i(-1, -1):
+		var victim := board.get_piece(victim_pos)
+		if victim and victim.type == Piece.Type.KING:
+			var winner := Piece.Side.WHITE if victim.side == Piece.Side.BLACK else Piece.Side.BLACK
+			# Emit signal for animation before ending game
+			triplet_clearing.emit(positions, victim_pos, move_dir)
+			# Remove pieces
+			for pos in positions:
+				board.remove_piece(pos)
+			board.remove_piece(victim_pos)
+			game_over.emit(winner, "triplet clear")
+			return true
+
+	# Emit signal for animation
+	triplet_clearing.emit(positions, victim_pos, move_dir)
+
+	# Remove pieces from board
+	for pos in positions:
+		board.remove_piece(pos)
+	if victim_pos != Vector2i(-1, -1):
+		board.remove_piece(victim_pos)
+
+	return true
+
+
+func _find_first_piece_in_direction(triplet: Array[Vector2i], dir: Vector2i) -> Vector2i:
+	## Find the first piece outside the triplet in the given direction
+	var edge_pos: Vector2i
+	if dir.x > 0 or dir.y > 0:
+		edge_pos = triplet[-1]  # Rightmost or bottommost
+	else:
+		edge_pos = triplet[0]   # Leftmost or topmost
+
+	var check := edge_pos + dir
+	while board.is_valid_position(check):
+		if board.get_piece(check) != null:
+			return check
+		check += dir
+
+	return Vector2i(-1, -1)  # No victim found
+
+
+func _on_piece_moved(_from: Vector2i, _to: Vector2i, _piece: Piece) -> void:
 	# Additional logic when piece moves (e.g., for UI updates)
 	pass
 
 
-func _on_piece_captured(position: Vector2i, piece: Piece, _attacker_from: Vector2i) -> void:
+func _on_piece_captured(_position: Vector2i, piece: Piece, _attacker_from: Vector2i) -> void:
 	# If king is captured, game ends immediately (shouldn't happen in proper chess, but safety check)
 	if piece.type == Piece.Type.KING:
 		status = Status.CHECKMATE
