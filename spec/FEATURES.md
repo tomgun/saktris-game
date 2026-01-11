@@ -386,3 +386,95 @@
   - Integration: n/a
   - Acceptance: complete
 - Description: Sound effects system with support for switchable audiovisual themes. Includes move sounds, capture sounds, check/checkmate alerts, collision sounds, triplet clear sounds, and UI feedback. Theme system allows different sound sets that can later be paired with visual styles.
+
+## F-0016: TimerMode
+- Tags: [gameplay, clock]
+- Layer: business-logic
+- Domain: gameplay
+- Priority: medium
+- Parent: none
+- Dependencies: F-0005
+- Complexity: M
+- Status: shipped
+- Acceptance: spec/acceptance/F-0016.md
+- Verification:
+  - Accepted: yes
+  - Accepted at: 2026-01-08
+- Implementation:
+  - State: complete
+  - Code: src/game/chess_clock.gd, src/game/game_state.gd
+- Tests:
+  - Strategy: unit
+  - Unit: complete
+  - Integration: n/a
+  - Acceptance: complete
+- Description: Chess clock with standard time controls (bullet, blitz, rapid, classical). Per-player countdown with time-out detection.
+
+## F-0017: DrawRules
+- Tags: [gameplay, rules]
+- Layer: business-logic
+- Domain: gameplay
+- Priority: medium
+- Parent: F-0005
+- Dependencies: F-0005
+- Complexity: M
+- Status: shipped
+- Acceptance: spec/acceptance/F-0017.md
+- Verification:
+  - Accepted: yes
+  - Accepted at: 2026-01-08
+- Implementation:
+  - State: complete
+  - Code: src/game/draw_detector.gd, src/game/position_hash.gd, src/game/game_state.gd
+- Tests:
+  - Strategy: unit
+  - Unit: complete
+  - Integration: n/a
+  - Acceptance: complete
+- Description: Draw detection for 50-move rule, threefold repetition, and insufficient material (K vs K, K+B vs K, K+N vs K).
+
+## F-0018: MultiplePieceSets
+- Tags: [ui, visuals]
+- Layer: presentation
+- Domain: ui
+- Priority: low
+- Parent: F-0002
+- Dependencies: F-0002
+- Complexity: M
+- Status: shipped
+- Acceptance: spec/acceptance/F-0018.md
+- Verification:
+  - Accepted: yes
+  - Accepted at: 2026-01-09
+- Implementation:
+  - State: complete
+  - Code: src/ui/board/piece_sprite.gd, src/systems/settings.gd, assets/sprites/pieces/
+- Tests:
+  - Strategy: manual
+  - Unit: n/a
+  - Integration: n/a
+  - Acceptance: complete
+- Description: Multiple piece set options including standard flat (CBurnett) and spatial 3D-style pieces with depth and shadows.
+
+## F-0019: MobileView
+- Tags: [ui, mobile, responsive]
+- Layer: presentation
+- Domain: ui
+- Priority: medium
+- Parent: F-0002
+- Dependencies: F-0002
+- Complexity: L
+- Status: in_progress
+- Acceptance: spec/acceptance/F-0019.md
+- Verification:
+  - Accepted: no
+  - Accepted at:
+- Implementation:
+  - State: partial
+  - Code:
+- Tests:
+  - Strategy: manual
+  - Unit: n/a
+  - Integration: n/a
+  - Acceptance: todo
+- Description: Responsive mobile layout with touch input support. Screen width < 800px triggers vertical layout. Includes tap-to-move, drag-to-move, and long-press for arrow drawing.

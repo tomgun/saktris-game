@@ -24,6 +24,17 @@ var recent_collisions: Dictionary = {}  # Track recent collisions to avoid spark
 var dragging_sprite: PieceSprite = null  # Currently dragged piece
 var drag_was_new_selection: bool = false  # Track if drag_started created a new selection
 
+# Mobile layout state
+const MOBILE_BREAKPOINT := 800
+var is_mobile: bool = false
+
+# Touch input state
+var touch_active: bool = false
+var last_touch_position: Vector2 = Vector2.ZERO
+var long_press_timer: Timer = null
+var long_press_start_pos: Vector2 = Vector2.ZERO
+const LONG_PRESS_DURATION := 0.5  # seconds
+
 # Arrow drawing state
 var arrow_start_pos: Vector2i = Vector2i(-1, -1)  # Board position where arrow starts
 var arrow_piece: Piece = null  # Piece we're drawing arrows from
@@ -33,6 +44,7 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: GridContainer = %SquaresGrid
+@onready var board_background: ColorRect = $MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/BoardBackground
 @onready var pieces_layer: Control = %PiecesLayer
 @onready var highlights_layer: Control = %HighlightsLayer
 @onready var arrows_layer: Control = %ArrowsLayer
@@ -51,17 +63,51 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 @onready var promotion_dialog: PanelContainer = %PromotionDialog
 @onready var promotion_buttons: HBoxContainer = %PromotionButtons
 @onready var new_game_button: Button = %NewGameButton
+@onready var margin_container: MarginContainer = $MarginContainer
+@onready var main_hbox: HBoxContainer = $MarginContainer/HBoxContainer
+@onready var side_panel: VBoxContainer = $MarginContainer/HBoxContainer/SidePanel
+@onready var status_panel: VBoxContainer = %StatusPanel
+
+# Mobile UI elements
+@onready var mobile_ui: VBoxContainer = %MobileUI
+@onready var mobile_top_bar: PanelContainer = %MobileTopBar
+@onready var mobile_turn_indicator: ColorRect = %MobileTurnIndicator
+@onready var mobile_turn_label: Label = %MobileTurnLabel
+@onready var mobile_status_label: Label = %MobileStatusLabel
+@onready var mobile_bottom_bar: VBoxContainer = %MobileBottomBar
+@onready var mobile_queue_container: HBoxContainer = %MobileQueueContainer
+@onready var mobile_new_game_button: Button = %MobileNewGameButton
 
 signal new_game_requested
 
 
 func _ready() -> void:
 	new_game_button.pressed.connect(_on_new_game_pressed)
+	mobile_new_game_button.pressed.connect(_on_new_game_pressed)
 	_create_board()
+
+	# Setup mobile detection
+	get_viewport().size_changed.connect(_check_mobile_mode)
+	_check_mobile_mode()
+
+	# Setup long press timer for touch arrow drawing
+	long_press_timer = Timer.new()
+	long_press_timer.one_shot = true
+	long_press_timer.timeout.connect(_on_long_press_timeout)
+	add_child(long_press_timer)
 
 
 func _input(event: InputEvent) -> void:
-	# Handle right-click for arrow drawing
+	# Handle touch input (mobile)
+	if event is InputEventScreenTouch:
+		_handle_touch_event(event)
+		return
+
+	if event is InputEventScreenDrag:
+		_handle_touch_drag(event)
+		return
+
+	# Handle right-click for arrow drawing (desktop)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed:
 			_start_arrow_drawing()
@@ -80,22 +126,15 @@ func _input(event: InputEvent) -> void:
 			_clear_planning_arrows()
 
 		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn():
-			# Check if click is within or near the board area
-			var local_pos := board_container.get_local_mouse_position()
-			var col := int(local_pos.x / square_size)
-
-			# Allow clicks in valid column range and extended vertical area
+			# Use actual square positions to determine column (more robust)
+			var col := _get_column_under_cursor()
 			if col >= 0 and col < BOARD_SIZE:
 				var is_white := game_state.current_player == Piece.Side.WHITE
 				var target_row := 0 if is_white else 7
 				var target_pos := Vector2i(col, target_row)
 
-				# Check vertical bounds - allow clicks above/below board too
-				var board_height := BOARD_SIZE * square_size
-				var in_extended_area := local_pos.y >= -square_size * 1.5 and local_pos.y <= board_height + square_size * 1.5
 				var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
-
-				if in_extended_area and arriving and game_state.board.can_place_piece_at(target_pos, arriving):
+				if arriving and game_state.board.can_place_piece_at(target_pos, arriving):
 					if game_state.try_place_piece(col):
 						# Turn ends after placing - no auto-select needed
 						_clear_placement_highlights()
@@ -147,6 +186,10 @@ func initialize(state: GameState) -> void:
 func _create_board() -> void:
 	squares_grid.columns = BOARD_SIZE
 
+	# Ensure no separation in GridContainer (can cause position mismatch)
+	squares_grid.add_theme_constant_override("h_separation", 0)
+	squares_grid.add_theme_constant_override("v_separation", 0)
+
 	# Create 8x8 grid of squares
 	for row in range(BOARD_SIZE):
 		var row_array: Array = []
@@ -195,58 +238,39 @@ func _create_piece_sprite(piece: Piece, pos: Vector2i):
 
 
 func _board_to_pixel(board_pos: Vector2i) -> Vector2:
-	# Convert board position to pixel position based on actual square positions
-	var square = _get_square(board_pos)
-	if square:
-		return square.global_position - pieces_layer.global_position
-	# Fallback calculation
+	## Convert board position to pixel position (relative to the grid/layers)
+	# Use direct calculation - more reliable than global_position during layout updates
 	var display_row := BOARD_SIZE - 1 - board_pos.y
 	return Vector2(board_pos.x * square_size, display_row * square_size)
 
 
 func _on_square_clicked(board_pos: Vector2i) -> void:
 	if game_state == null:
-		print("[DEBUG] game_state is null")
 		return
-
-	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
-	print("[DEBUG] Click at %s, current_player=%s, is_ai_turn=%s" % [board_pos, player, game_state.is_ai_turn()])
 
 	# Ignore clicks during AI's turn
 	if game_state.is_ai_turn():
-		print("[DEBUG] Blocked - AI's turn")
 		return
 
 	# Check if we need to place an arriving piece first
 	if game_state.must_place_piece():
-		print("[DEBUG] Must place piece first! Clicking %s" % board_pos)
 		# In arrival mode - try to place piece
 		if _try_place_arriving_piece(board_pos):
-			print("[DEBUG] Piece placed successfully - turn ends")
 			_clear_placement_highlights()
 			_update_arrival_display()
 			_update_turn_display()
-			# Turn ends after placing - no auto-select
-		else:
-			print("[DEBUG] Invalid placement location - must place on back row empty square")
 		return  # Don't allow normal moves while placing
 
 	# Normal move mode
-	print("[DEBUG] selected_pos=%s, legal_moves=%s" % [selected_pos, legal_moves])
 	if selected_pos == Vector2i(-1, -1):
 		# No piece selected - try to select one
 		var piece := game_state.board.get_piece(board_pos)
-		print("[DEBUG] Trying to select at %s, piece=%s" % [board_pos, piece])
 		if piece and piece.side == game_state.current_player:
-			print("[DEBUG] Selecting piece!")
 			_select_piece(board_pos)
-		else:
-			print("[DEBUG] No piece to select or wrong side")
 	else:
 		# Piece already selected
 		if board_pos in legal_moves:
 			# Valid move - execute it
-			print("[DEBUG] Executing move from %s to %s" % [selected_pos, board_pos])
 			_execute_move(selected_pos, board_pos)
 		else:
 			# Check if clicking on another own piece
@@ -373,9 +397,13 @@ func _on_piece_clicked(sprite: PieceSprite) -> void:
 
 
 func _pixel_to_board(pixel_pos: Vector2) -> Vector2i:
-	## Convert pixel position to board coordinates
-	var col := int(pixel_pos.x / square_size)
-	var display_row := int(pixel_pos.y / square_size)
+	## Convert pixel position to board coordinates (accounting for grid offset)
+	# Subtract grid offset to get position relative to the grid
+	var grid_offset := squares_grid.position if squares_grid else Vector2.ZERO
+	var adjusted_pos := pixel_pos - grid_offset
+
+	var col := int(adjusted_pos.x / square_size)
+	var display_row := int(adjusted_pos.y / square_size)
 	var board_row := BOARD_SIZE - 1 - display_row
 	return Vector2i(col, board_row)
 
@@ -756,25 +784,39 @@ func _update_turn_display() -> void:
 	var is_white := game_state.current_player == Piece.Side.WHITE
 	var current := "White" if is_white else "Black"
 	var action := "place" if game_state.must_place_piece() else "move"
-	turn_label.text = "%s to %s" % [current, action]
+	var text := "%s to %s" % [current, action]
 
-	# Update turn indicator color
+	# Update desktop turn display
+	turn_label.text = text
 	if turn_indicator:
 		turn_indicator.color = Color.WHITE if is_white else Color.BLACK
 
+	# Update mobile turn display
+	if is_mobile:
+		mobile_turn_label.text = text
+		if mobile_turn_indicator:
+			mobile_turn_indicator.color = Color.WHITE if is_white else Color.BLACK
+		_update_mobile_queue_display()
+
 
 func _update_status_display(status: GameState.Status) -> void:
+	var text := ""
 	match status:
 		GameState.Status.PLAYING:
-			status_label.text = ""
+			text = ""
 		GameState.Status.CHECK:
-			status_label.text = "Check!"
+			text = "Check!"
 		GameState.Status.CHECKMATE:
-			status_label.text = "Checkmate!"
+			text = "Checkmate!"
 		GameState.Status.STALEMATE:
-			status_label.text = "Stalemate!"
+			text = "Stalemate!"
 		GameState.Status.DRAW:
-			status_label.text = "Draw!"
+			text = "Draw!"
+
+	# Update both desktop and mobile
+	status_label.text = text
+	if is_mobile and mobile_status_label:
+		mobile_status_label.text = text
 
 
 func _update_arrival_display() -> void:
@@ -837,23 +879,21 @@ func _show_placement_highlights() -> void:
 
 
 func _update_hovering_piece() -> void:
-	## Update the hovering arrival piece position based on mouse
+	## Update the hovering arrival piece position based on mouse/touch
 	if game_state == null or not game_state.must_place_piece():
 		hovering_piece.visible = false
 		ghost_piece.visible = false
 		hovered_column = -1
 		return
 
-	# Get mouse position relative to board
-	var mouse_pos := board_container.get_local_mouse_position()
 	var is_white := game_state.current_player == Piece.Side.WHITE
-
-	# Calculate which column the mouse is over
-	var col := int(mouse_pos.x / square_size)
-	col = clampi(col, 0, BOARD_SIZE - 1)
-
-	# Check if this column is valid for placement
 	var target_row := 0 if is_white else 7
+
+	# Find which column the cursor is over by checking actual square positions
+	var col := _get_column_under_cursor()
+	if col < 0:
+		col = 0  # Fallback to first column if cursor is outside
+
 	var target_pos := Vector2i(col, target_row)
 	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
 	var is_valid := arriving != null and game_state.board.can_place_piece_at(target_pos, arriving)
@@ -864,19 +904,32 @@ func _update_hovering_piece() -> void:
 		hovering_piece.size = Vector2(square_size, square_size)
 		hovering_piece.visible = true
 
+		# Get the actual X position from the target square's global position
+		var target_square = _get_square(target_pos)
+		var hover_global_x: float
+		if target_square:
+			hover_global_x = target_square.global_position.x
+		else:
+			hover_global_x = arrival_layer.global_position.x + col * square_size
+
 		# Position the piece in the arrival area (outside the board)
-		var hover_x := col * square_size
-		var hover_y: float
+		var hover_global_y: float
 		if is_white:
 			# White places on row 0 (bottom of display), so hover below board
-			# Position relative to board container - arrival area is below
-			hover_y = BOARD_SIZE * square_size + 5
+			var bottom_square = _get_square(Vector2i(0, 0))
+			if bottom_square:
+				hover_global_y = bottom_square.global_position.y + square_size + 5
+			else:
+				hover_global_y = arrival_layer.global_position.y + BOARD_SIZE * square_size + 5
 		else:
 			# Black places on row 7 (top of display), so hover above board
-			# Position relative to board container - arrival area is above
-			hover_y = -square_size - 5
+			var top_square = _get_square(Vector2i(0, 7))
+			if top_square:
+				hover_global_y = top_square.global_position.y - square_size - 5
+			else:
+				hover_global_y = arrival_layer.global_position.y - square_size - 5
 
-		hovering_piece.position = Vector2(hover_x, hover_y)
+		hovering_piece.global_position = Vector2(hover_global_x, hover_global_y)
 
 		# Add a gentle bobbing animation
 		var bob := sin(Time.get_ticks_msec() / 200.0) * 3.0
@@ -892,7 +945,11 @@ func _update_hovering_piece() -> void:
 		if is_valid:
 			ghost_piece.texture = hovering_piece.texture
 			ghost_piece.size = Vector2(square_size, square_size)
-			ghost_piece.position = _board_to_pixel(target_pos)
+			# Position ghost exactly on the target square using its actual global position
+			if target_square:
+				ghost_piece.global_position = target_square.global_position
+			else:
+				ghost_piece.position = _board_to_pixel(target_pos)
 			ghost_piece.visible = true
 			hovered_column = col
 		else:
@@ -916,16 +973,41 @@ func _notification(what: int) -> void:
 
 func _on_resized() -> void:
 	# Recalculate square size based on available space
-	if board_container == null:
+	if board_container == null or squares_grid == null:
 		return
 
 	var available := mini(board_container.size.x, board_container.size.y)
-	square_size = available / BOARD_SIZE
+	var new_square_size: float = available / BOARD_SIZE
+
+	# Only update if size actually changed significantly
+	if absf(new_square_size - square_size) < 0.1:
+		return
+
+	square_size = new_square_size
 
 	# Update square sizes
 	for row in squares:
 		for square in row:
 			square.custom_minimum_size = Vector2(square_size, square_size)
+
+	# Center the grid within the container
+	var grid_size: float = square_size * BOARD_SIZE
+	var offset_x: float = maxf(0, (board_container.size.x - grid_size) / 2)
+	var offset_y: float = maxf(0, (board_container.size.y - grid_size) / 2)
+	var board_pos := Vector2(offset_x, offset_y)
+
+	squares_grid.position = board_pos
+
+	# Also offset the other layers to match
+	pieces_layer.position = board_pos
+	highlights_layer.position = board_pos
+	arrows_layer.position = board_pos
+	arrival_layer.position = board_pos
+
+	# Resize and position the background to match the board
+	if board_background:
+		board_background.position = board_pos
+		board_background.size = Vector2(grid_size, grid_size)
 
 	# Reposition pieces
 	for pos in piece_sprites:
@@ -933,6 +1015,240 @@ func _on_resized() -> void:
 		sprite.size = Vector2(square_size, square_size)
 		sprite.custom_minimum_size = Vector2(square_size, square_size)
 		sprite.position = _board_to_pixel(pos)
+
+
+func _check_mobile_mode() -> void:
+	## Check viewport size and switch layout mode if needed
+	var viewport_width: int = get_viewport().size.x
+	var new_is_mobile: bool = viewport_width < MOBILE_BREAKPOINT
+
+	if new_is_mobile != is_mobile:
+		is_mobile = new_is_mobile
+		_update_layout()
+
+
+func _update_layout() -> void:
+	## Update UI layout for mobile or desktop mode
+	if margin_container == null:
+		return
+
+	if is_mobile:
+		# Mobile layout: minimal margins, hide side panel, show mobile UI overlay
+		margin_container.add_theme_constant_override("margin_left", 8)
+		margin_container.add_theme_constant_override("margin_top", 8)
+		margin_container.add_theme_constant_override("margin_right", 8)
+		margin_container.add_theme_constant_override("margin_bottom", 8)
+
+		# Hide side panel - board will expand to fill space
+		if side_panel:
+			side_panel.visible = false
+
+		# Show mobile UI overlay (positioned absolutely, doesn't need margin space)
+		if mobile_ui:
+			mobile_ui.visible = true
+
+		# Update mobile display
+		_update_mobile_display()
+	else:
+		# Desktop layout: normal margins, show side panel, hide mobile UI
+		margin_container.add_theme_constant_override("margin_left", 20)
+		margin_container.add_theme_constant_override("margin_top", 20)
+		margin_container.add_theme_constant_override("margin_right", 20)
+		margin_container.add_theme_constant_override("margin_bottom", 20)
+
+		if side_panel:
+			side_panel.visible = true
+
+		if mobile_ui:
+			mobile_ui.visible = false
+
+	# Force layout recalculation after layout settles
+	call_deferred("_on_resized")
+	# Also queue a second update to catch any delayed layout changes
+	get_tree().create_timer(0.1).timeout.connect(_on_resized)
+
+
+func _update_mobile_display() -> void:
+	## Update mobile UI elements with current game state
+	if not is_mobile or game_state == null:
+		return
+
+	# Update mobile turn display
+	var is_white := game_state.current_player == Piece.Side.WHITE
+	var current := "White" if is_white else "Black"
+	var action := "place" if game_state.must_place_piece() else "move"
+	mobile_turn_label.text = "%s to %s" % [current, action]
+
+	if mobile_turn_indicator:
+		mobile_turn_indicator.color = Color.WHITE if is_white else Color.BLACK
+
+	# Update mobile queue display
+	_update_mobile_queue_display()
+
+
+func _update_mobile_queue_display() -> void:
+	## Update the mobile queue preview
+	if not is_mobile or game_state == null or mobile_queue_container == null:
+		return
+
+	# Clear existing preview sprites
+	for child in mobile_queue_container.get_children():
+		child.queue_free()
+
+	# Get upcoming pieces
+	var preview_count := mini(Settings.piece_preview_count, 4)  # Limit on mobile
+	var upcoming := game_state.arrival_manager.get_upcoming_pieces(game_state.current_player, preview_count)
+
+	# Create preview sprites
+	for piece_type in upcoming:
+		var preview := TextureRect.new()
+		preview.custom_minimum_size = Vector2(40, 40)
+		preview.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		preview.texture = _get_piece_texture(piece_type, game_state.current_player)
+		mobile_queue_container.add_child(preview)
+
+
+# Touch input handling (mobile)
+
+func _handle_touch_event(event: InputEventScreenTouch) -> void:
+	## Handle touch start/end events
+	last_touch_position = event.position
+	touch_active = event.pressed
+
+	if event.pressed:
+		# Touch started - start long press detection for arrow drawing
+		long_press_start_pos = event.position
+		long_press_timer.start(LONG_PRESS_DURATION)
+
+		# Clear existing planning arrows on tap
+		if planning_arrows.size() > 0:
+			_clear_planning_arrows()
+	else:
+		# Touch ended
+		long_press_timer.stop()
+
+		if is_drawing_arrow:
+			# Finish arrow drawing
+			_finish_arrow_drawing()
+		else:
+			# This was a tap - simulate click
+			_handle_touch_tap(event.position)
+
+
+func _handle_touch_drag(event: InputEventScreenDrag) -> void:
+	## Handle touch drag events
+	last_touch_position = event.position
+
+	# Cancel long press if finger moved too far
+	if long_press_timer.time_left > 0:
+		var drag_distance := event.position.distance_to(long_press_start_pos)
+		if drag_distance > 20:  # 20px threshold
+			long_press_timer.stop()
+
+	# Update arrow while drawing
+	if is_drawing_arrow:
+		_update_current_arrow()
+
+
+func _on_long_press_timeout() -> void:
+	## Called when long press is detected - start arrow drawing
+	if touch_active:
+		_start_arrow_drawing_at(last_touch_position)
+
+
+func _handle_touch_tap(position: Vector2) -> void:
+	## Handle a touch tap as a click
+	# Store touch position for _get_column_under_cursor
+	last_touch_position = position
+	touch_active = true
+
+	# Handle piece placement using actual square positions
+	if game_state and game_state.must_place_piece() and not game_state.is_ai_turn():
+		var col := _get_column_under_cursor()
+		if col >= 0 and col < BOARD_SIZE:
+			var is_white := game_state.current_player == Piece.Side.WHITE
+			var target_row := 0 if is_white else 7
+			var target_pos := Vector2i(col, target_row)
+
+			var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
+			if arriving and game_state.board.can_place_piece_at(target_pos, arriving):
+				if game_state.try_place_piece(col):
+					_clear_placement_highlights()
+					_update_arrival_display()
+					_update_turn_display()
+					touch_active = false
+					return
+
+	# Handle normal square click
+	var local_pos := board_container.get_global_transform().affine_inverse() * position
+	var board_pos := _pixel_to_board(local_pos)
+	touch_active = false
+
+	if _is_valid_board_pos(board_pos):
+		_on_square_clicked(board_pos)
+
+
+func _start_arrow_drawing_at(screen_position: Vector2) -> void:
+	## Start arrow drawing from a specific screen position (for touch)
+	var local_pos := board_container.get_global_transform().affine_inverse() * screen_position
+	var board_pos := _pixel_to_board(local_pos)
+
+	if not _is_valid_board_pos(board_pos):
+		return
+
+	var piece := game_state.board.get_piece(board_pos) if game_state else null
+	if piece == null:
+		return
+
+	arrow_start_pos = board_pos
+	arrow_piece = piece
+	is_drawing_arrow = true
+
+	current_arrow = _create_arrow_node()
+	arrows_layer.add_child(current_arrow)
+
+
+func _get_input_position() -> Vector2:
+	## Get current input position relative to the grid (works for both mouse and touch)
+	var container_pos: Vector2
+	if touch_active:
+		container_pos = board_container.get_global_transform().affine_inverse() * last_touch_position
+	else:
+		container_pos = board_container.get_local_mouse_position()
+
+	# Subtract grid offset to get position relative to the grid
+	var grid_offset := squares_grid.position if squares_grid else Vector2.ZERO
+	return container_pos - grid_offset
+
+
+func _get_column_under_cursor() -> int:
+	## Find which column the cursor is over by checking actual square global positions
+	## Returns -1 if cursor is outside all columns
+	var cursor_global: Vector2
+	if touch_active:
+		cursor_global = last_touch_position
+	else:
+		cursor_global = get_global_mouse_position()
+
+	# Check each column by looking at the first row's squares
+	for col in range(BOARD_SIZE):
+		var square: Control = squares[0][col]  # Any row works since columns are aligned
+		var square_rect: Rect2 = square.get_global_rect()
+		# Extend the rect vertically to cover the full board height plus arrival areas
+		square_rect.position.y -= square_size * 2  # Extend above
+		square_rect.size.y = square_size * (BOARD_SIZE + 4)  # Cover full height plus margins
+		if cursor_global.x >= square_rect.position.x and cursor_global.x < square_rect.position.x + square_rect.size.x:
+			return col
+
+	# Cursor is outside - determine closest column
+	var first_square = squares[0][0]
+	var last_square = squares[0][BOARD_SIZE - 1]
+	if cursor_global.x < first_square.get_global_rect().position.x:
+		return 0
+	elif cursor_global.x >= last_square.get_global_rect().position.x:
+		return BOARD_SIZE - 1
+	return -1
 
 
 # Promotion dialog handling
@@ -986,19 +1302,14 @@ func _on_promotion_selected(piece_type: int) -> void:
 # AI handling
 
 func _on_ai_turn_started() -> void:
-	print("[DEBUG] AI turn started")
 	# Add a small delay so the player can see the board state
 	await get_tree().create_timer(0.3).timeout
 
 	if game_state == null:
-		print("[DEBUG] AI: game_state is null")
 		return
 
-	print("[DEBUG] AI requesting move...")
 	# Request AI to make its move
 	game_state.request_ai_move()
-	var player := "WHITE" if game_state.current_player == Piece.Side.WHITE else "BLACK"
-	print("[DEBUG] AI done, now %s's turn" % player)
 
 
 func _on_new_game_pressed() -> void:
@@ -1042,11 +1353,11 @@ func _start_arrow_drawing() -> void:
 
 
 func _update_current_arrow() -> void:
-	## Update the arrow being drawn to follow mouse
+	## Update the arrow being drawn to follow mouse/touch
 	if current_arrow == null or arrow_piece == null:
 		return
 
-	var local_pos := board_container.get_local_mouse_position()
+	var local_pos := _get_input_position()
 	var target_pos := _pixel_to_board(local_pos)
 
 	# Check if target is valid for this piece's movement pattern
@@ -1070,7 +1381,7 @@ func _finish_arrow_drawing() -> void:
 	if current_arrow == null or arrow_piece == null:
 		return
 
-	var local_pos := board_container.get_local_mouse_position()
+	var local_pos := _get_input_position()
 	var target_pos := _pixel_to_board(local_pos)
 
 	# Only save valid arrows that go to a different square

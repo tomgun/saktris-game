@@ -50,62 +50,32 @@ custom_minimum_size = Vector2(0, 70)
 layout_mode = 2
 
 [node name="BoardBackground" type="ColorRect" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 color = Color(0.2, 0.15, 0.1, 1)
 
 [node name="SquaresGrid" type="GridContainer" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 columns = 8
 
 [node name="PiecesLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 mouse_filter = 2
 
 [node name="HighlightsLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 mouse_filter = 2
 
 [node name="ArrowsLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 mouse_filter = 2
 
 [node name="ArrivalLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
 mouse_filter = 2
 
 [node name="HoveringPiece" type="TextureRect" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/ArrivalLayer"]
@@ -216,6 +186,67 @@ size_flags_vertical = 3
 [node name="NewGameButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "New Game"
+
+[node name="MobileUI" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MobileTopBar" type="PanelContainer" parent="MobileUI"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="HBox" type="HBoxContainer" parent="MobileUI/MobileTopBar"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MobileTurnIndicator" type="ColorRect" parent="MobileUI/MobileTopBar/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 1, 1, 1)
+
+[node name="MobileTurnLabel" type="Label" parent="MobileUI/MobileTopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "White to move"
+
+[node name="MobileStatusLabel" type="Label" parent="MobileUI/MobileTopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.3, 0.3, 1)
+
+[node name="Spacer" type="Control" parent="MobileUI"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="MobileBottomBar" type="VBoxContainer" parent="MobileUI"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 8
+
+[node name="MobileQueueContainer" type="HBoxContainer" parent="MobileUI/MobileBottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="MobileNewGameButton" type="Button" parent="MobileUI/MobileBottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 text = "New Game"
 
