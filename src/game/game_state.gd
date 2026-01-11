@@ -176,10 +176,16 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 		promotion_needed.emit(to, current_player)
 		return true  # Move successful, but waiting for promotion choice
 
+	# Check if game already ended from king capture (signal handler sets this)
+	if status == Status.CHECKMATE:
+		if chess_clock:
+			chess_clock.pause()
+		return true
+
 	# Check for triplet clear (before finishing turn)
 	if Settings.triplet_clear_enabled:
 		if _check_and_execute_triplet_clear(to):
-			# If game ended due to king capture, don't finish turn
+			# If game ended due to king capture in triplet, don't finish turn
 			if status == Status.CHECKMATE:
 				return true
 
