@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="AudioTheme" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://src/systems/audio_theme.gd" id="1"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/move.ogg" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/capture.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/place.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/check.ogg" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/checkmate.ogg" id="6"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/stalemate.ogg" id="7"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/game_start.ogg" id="8"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/click.ogg" id="9"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/select.ogg" id="10"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/collision.ogg" id="11"]
+[ext_resource type="AudioStream" path="res://assets/audio/themes/classic/sfx/triplet_clear.ogg" id="12"]
+
+[resource]
+script = ExtResource("1")
+theme_name = "Classic"
+theme_id = "classic"
+sfx_move = ExtResource("2")
+sfx_capture = ExtResource("3")
+sfx_place = ExtResource("4")
+sfx_check = ExtResource("5")
+sfx_checkmate = ExtResource("6")
+sfx_stalemate = ExtResource("7")
+sfx_game_start = ExtResource("8")
+sfx_click = ExtResource("9")
+sfx_select = ExtResource("10")
+sfx_collision = ExtResource("11")
+sfx_triplet_clear = ExtResource("12")
