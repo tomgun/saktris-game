@@ -45,6 +45,10 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
+agentic-backup-*/
+
+# Godot UID files (auto-generated)
+*.uid
 
 # Asset import cache (regenerated)
 .import/
