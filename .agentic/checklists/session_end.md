@@ -6,11 +6,13 @@
 
 ---
 
-## Documentation Updates (MANDATORY)
+## Documentation Updates (MANDATORY - WILL BE CHECKED!)
+
+**🚨 CRITICAL**: If session ends abruptly, these documents are the ONLY record of progress. Update them BEFORE ending!
 
 ### Core Profile
 
-- [ ] **`JOURNAL.md` updated with full session summary**
+- [ ] **`JOURNAL.md` updated with full session summary** (NON-NEGOTIABLE!)
   - Session date/time
   - What feature/task was worked on
   - What was accomplished (concrete deliverables)
@@ -18,6 +20,7 @@
   - Any challenges encountered
   - What's next (clear next step)
   - Any context the next session needs
+  - **RULE**: Never end session without updating JOURNAL.md!
 
 - [ ] **`PRODUCT.md` reflects current state**
   - Completed capabilities marked [x]
@@ -47,19 +50,34 @@
 
 ---
 
-## Blockers Documented
+## Blockers Documented (CRITICAL - CHECK FIRST!)
 
-- [ ] **Update `HUMAN_NEEDED.md`** (if blocked)
+**🚨 BEFORE anything else, check if you discovered any blockers during this session:**
+
+- [ ] **Review what you discovered/set up**
+  - Did you mention any manual installation steps?
+  - Did you discover missing credentials?
+  - Did you identify design decisions needed?
+  - Did you mention any "you'll need to..." items?
+
+- [ ] **Update `HUMAN_NEEDED.md`** (if any blockers found)
+  - **RULE**: If you mentioned something to the user in chat that requires their action, it MUST be in HUMAN_NEEDED.md
+  - Don't assume they'll remember - document it!
   - Clear description of blocker
   - Why it needs human input
   - What you've tried already
   - What information/decision is needed
   - How urgent is it
+  - **Examples**:
+    - Manual plugin installation (e.g., GUT for Godot)
+    - API keys needed
+    - Design decisions pending
+    - Account creation required
 
-- [ ] **Or clear `HUMAN_NEEDED.md`** (if blockers resolved)
-  - Remove resolved items
-  - Keep only current blockers
-  - Or leave empty if no blockers
+- [ ] **Or verify `HUMAN_NEEDED.md` is current** (if no new blockers)
+  - Remove resolved items (move to "Resolved" section)
+  - Keep only active blockers
+  - Leave empty if no blockers
 
 ---
 
@@ -69,6 +87,13 @@
   - Either: All changes committed
   - Or: Clear explanation to user why not committed
   - If mid-work: Explain state and what's next
+
+- [ ] **No untracked files in project directories**
+  - Run: `git status --short | grep '??'`
+  - Check: assets/, src/, tests/, spec/, docs/ for untracked files
+  - Either: `git add` new files you created
+  - Or: Add to `.gitignore` if intentionally untracked
+  - **WARNING**: Untracked files = missing from deployment!
 
 - [ ] **No work-in-progress files**
   - No temp files left around

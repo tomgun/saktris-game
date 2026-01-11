@@ -4,7 +4,7 @@
 # This hook runs after Claude uses any tool (file edits, terminal commands, etc.)
 # It performs fast, non-blocking quality checks to catch issues early.
 #
-# Triggered by: Claude Desktop PostToolUse hook
+# Triggered by: Claude Code PostToolUse hook
 # Timeout: 2 seconds
 
 set -euo pipefail
@@ -61,6 +61,27 @@ if [[ "$HAS_ISSUES" == "true" ]]; then
   echo ""
   echo "⚠️  Quick lint check found issues. Run your linter to see details."
   echo ""
+fi
+
+# Auto-log checkpoint (every ~10 tool uses to avoid spam)
+COUNTER_FILE=".agentic/.cache/tool_use_counter"
+mkdir -p ".agentic/.cache" 2>/dev/null || true
+
+if [[ -f "$COUNTER_FILE" ]]; then
+  COUNT=$(cat "$COUNTER_FILE")
+  COUNT=$((COUNT + 1))
+else
+  COUNT=1
+fi
+
+echo "$COUNT" > "$COUNTER_FILE"
+
+# Log every 10th tool use as a checkpoint
+if [[ $((COUNT % 10)) -eq 0 ]] && [[ -x ".agentic/tools/session_log.sh" ]]; then
+  bash .agentic/tools/session_log.sh \
+    "Checkpoint (${COUNT} actions)" \
+    "Automatic checkpoint after ${COUNT} tool uses." \
+    "checkpoint=auto,actions=${COUNT}" 2>/dev/null || true
 fi
 
 exit 0  # Always exit 0 (advisory only, don't block Claude)

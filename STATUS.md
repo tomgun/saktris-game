@@ -2,6 +2,10 @@
 
 <!-- format: status-v0.1.0 -->
 
+## In Progress
+
+- None
+
 ## Next Tasks (Priority)
 
 1. **Save/Load** - Persist game state, autosave functionality
@@ -15,7 +19,7 @@
 
 ---
 
-## Current State (2026-01-11)
+## Current State (2026-01-12)
 
 - Game is playable at: https://tomgun.github.io/saktris-game/
 - GitHub repo: https://github.com/tomgun/saktris-game (public)
@@ -37,6 +41,7 @@
   - Draw detection (50-move rule, threefold repetition, insufficient material)
   - Timer mode (chess clock with various time controls)
   - Multiple piece sets (standard flat, spatial 3D-style)
+  - Mobile responsive layout with touch input support
 
 ## Known Issues
 - None critical
@@ -56,4 +61,5 @@
 - F-0016: Timer Mode (chess clock)
 - F-0017: Draw Rules (50-move, repetition, insufficient material)
 - F-0018: Multiple Piece Sets (standard, spatial 3D)
+- F-0019: Mobile View (responsive layout + touch input)
 - Web deployment pipeline

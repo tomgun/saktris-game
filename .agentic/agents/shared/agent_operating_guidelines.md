@@ -1,10 +1,108 @@
-# Agent operating guidelines (shared)
+# Agent Operating Guidelines (All Tools)
 
-**📖 For framework principles and values, see [../../PRINCIPLES.md](../../PRINCIPLES.md)**
+**For**: Cursor, Copilot, Claude, Gemini, Codex, or ANY AI assistant.
 
-**🎯 Scope**: These rules are for **any** assistant (Cursor, Copilot, Claude, etc.) working in **a project that uses this framework**.
+---
 
-**🚨 Working ON the framework itself?** Also read [`../../FRAMEWORK_DEVELOPMENT.md`](../../FRAMEWORK_DEVELOPMENT.md) for additional guidelines specific to framework development.
+# 🤖 PROACTIVE SESSION START (Do This Automatically!)
+
+**At session start (first message, tokens reset, user returns):**
+
+## 1. Silently Read Context
+
+```bash
+cat STATUS.md 2>/dev/null || cat PRODUCT.md 2>/dev/null
+cat HUMAN_NEEDED.md 2>/dev/null | head -20
+ls WIP.md 2>/dev/null
+```
+
+## 2. Greet User with Recap (AUTOMATIC!)
+
+**Don't wait for "where were we?" - TELL THEM:**
+
+```
+👋 Welcome back! Here's where we are:
+
+**Last session**: [From JOURNAL.md or STATUS.md]
+**Current focus**: [From STATUS.md or PRODUCT.md]
+
+**Next steps** (pick one or tell me something else):
+1. [Next planned task]
+2. [Another option if exists]
+3. [Address blockers - if any]
+
+What would you like to work on?
+```
+
+## 3. Handle Special Cases
+
+| Situation | What to Say |
+|-----------|-------------|
+| **WIP.md exists** | "⚠️ Previous work interrupted! Continue, review, or rollback?" |
+| **HUMAN_NEEDED has items** | "📋 [N] items need your input" |
+| **Upgrade pending** | "🔄 Framework upgraded, applying updates..." |
+
+**Why proactive**: User shouldn't have to remember. You help immediately.
+
+---
+
+# 🛑 STOP! READ THIS FIRST!
+
+## WHEN User Says ANY of These → DO THIS FIRST:
+
+| Trigger Words | YOUR FIRST ACTION |
+|---------------|-------------------|
+| "build", "implement", "add", "create", "let's do", "make" | **🛑 STOP → Read `feature_start.md` → Check acceptance criteria EXIST** |
+| "fix", "bug", "issue" | **🛑 STOP → Check spec/ISSUES.md → Write failing test FIRST** |
+| "commit", "push" | **🛑 STOP → Read `before_commit.md` → All gates must pass** |
+| "done", "complete", "finished" | **🛑 STOP → Read `feature_complete.md` → Verify ALL items** |
+
+## 🚫 BLOCKING GATE (Non-Negotiable)
+
+```
+FEATURE REQUEST DETECTED?
+├─ Does spec/acceptance/F-####.md exist?
+│   ├─ YES → OK to proceed with implementation
+│   └─ NO  → 🛑 BLOCK. Create acceptance criteria FIRST.
+│            DO NOT write any code until criteria exist.
+│            Ask user to define criteria, or draft for approval.
+```
+
+**This gate is NON-NEGOTIABLE. Criteria before code. Every time.**
+
+---
+
+## Token Efficiency: DELEGATE Tasks
+
+| Task | Spawn Agent | Model Tier | Savings |
+|------|-------------|------------|---------|
+| Codebase exploration | `explore-agent` | Cheap/fast | 83% |
+| Documentation lookup | `research-agent` | Cheap/fast | 60% |
+| Implementation | `implementation-agent` | Mid-tier | Focus |
+| Test writing | `test-agent` | Mid-tier | Isolation |
+| Code review | `review-agent` | Mid-tier | Fresh eyes |
+
+**Context handoff**: Pass ONLY feature ID, criteria, 3-5 files, STACK.md.
+**DO NOT pass**: Full history, unrelated code, previous sessions.
+
+---
+
+## Quick Checklist References
+
+| Task | Read This First |
+|------|-----------------|
+| Starting a feature | `checklists/feature_start.md` |
+| Before any commit | `checklists/before_commit.md` |
+| Marking done | `checklists/feature_complete.md` |
+| Session start | `checklists/session_start.md` |
+| Session end | `checklists/session_end.md` |
+
+**Full auto-orchestration rules**: [`auto_orchestration.md`](./auto_orchestration.md)
+
+---
+
+**📖 Principles**: [../../PRINCIPLES.md](../../PRINCIPLES.md)
+**🚨 Framework development?** [../../FRAMEWORK_DEVELOPMENT.md](../../FRAMEWORK_DEVELOPMENT.md)
 
 ---
 
@@ -12,6 +110,7 @@
 
 **These checklists ensure nothing falls through the cracks. Use them systematically:**
 
+- **[`checklists/feature_start.md`](../../checklists/feature_start.md)** - 🛑 **BEFORE ANY FEATURE WORK** (gates!)
 - **[`checklists/session_start.md`](../../checklists/session_start.md)** - Starting every work session
 - **[`checklists/feature_implementation.md`](../../checklists/feature_implementation.md)** - Implementing any feature
 - **[`checklists/smoke_testing.md`](../../checklists/smoke_testing.md)** - 🚨 **VERIFYING CODE ACTUALLY WORKS** (critical!)
@@ -22,6 +121,7 @@
 
 **Critical Guidelines:**
 - **[`quality/library_selection.md`](../../quality/library_selection.md)** - 🚨 **CHOOSING LIBRARIES VS CUSTOM CODE** (prevent wrong choices!)
+- **[`workflows/automatic_journaling.md`](../../workflows/automatic_journaling.md)** - 🚨 **AUTO-JOURNAL AT CHECKPOINTS** (don't wait for session end!)
 
 **How to use checklists:**
 1. Read the appropriate checklist for your current task
@@ -39,6 +139,106 @@
 
 ---
 
+## 🔄 After Framework Upgrade
+
+**🚨 CRITICAL: The `.agentic/.upgrade_pending` file IS the upgrade notification. It contains EVERYTHING.**
+
+### How to Detect Upgrade
+
+At session start, check:
+```bash
+cat .agentic/.upgrade_pending 2>/dev/null || echo "No upgrade"
+```
+
+### If Marker Exists
+
+**READ THE FILE. It tells you:**
+- From/to versions
+- Whether STACK.md was auto-updated (if "no", update manually)
+- Complete TODO checklist
+- Changelog link
+
+**DON'T waste tokens:**
+- ❌ Don't search through `.agentic/` randomly
+- ❌ Don't read multiple files looking for version info
+- ❌ Don't compare versions manually
+- ✅ Just read `.upgrade_pending` and follow its TODO list
+
+### The TODO List (in the marker file)
+
+1. Read this file (the marker)
+2. If STACK.md not updated → update manually
+3. Read START_HERE.md for new workflows
+4. Validate specs
+5. Review CHANGELOG
+6. Delete the marker file
+
+### After Completing TODO
+
+```bash
+rm .agentic/.upgrade_pending
+```
+
+### Common Post-Upgrade Tasks
+
+| Old Version | Typical Updates Needed |
+|-------------|------------------------|
+| < 0.5.0 | Add acceptance criteria, check for new checklists |
+| < 0.6.0 | Update feature format, add WIP tracking |
+| < 0.7.0 | Review Acceptance-Driven vs TDD approach |
+| < 0.8.0 | Check new design principles, DX features |
+| < 0.9.0 | Check issue tracking (I-####), EMERGENCY.md |
+
+---
+
+## 🚨 CRITICAL: Small Batch Development (NON-NEGOTIABLE)
+
+**The single most important quality principle: WORK IN SMALL, ISOLATED BATCHES.**
+
+### Why This Is Critical
+
+- **Small changes = easy to verify = easy to rollback**
+- **If something goes wrong, most of the software still works**
+- **Known-good checkpoints after each feature**
+- **One feature at a time = clear ownership**
+
+### Rules
+
+1. **ONE feature at a time per agent** - Never work on multiple features simultaneously (multi-agent with worktrees is different - see below)
+2. **Acceptance criteria MUST exist** before implementation (even if rough)
+3. **Implement → verify with tests → commit** - Small batch rhythm
+4. **MAX 5-10 files per commit** - Stop and re-plan if more
+5. **Update specs with discoveries** - New edge cases, ideas, issues found
+
+### Spec Evolution Is Expected
+
+- Initial acceptance criteria may be rough
+- During implementation, you'll discover edge cases, issues
+- **UPDATE specs with these discoveries** - See [`workflows/spec_evolution.md`](../../workflows/spec_evolution.md)
+- This is normal, not a failure of planning
+
+### STOP and Re-Plan If
+
+- You need to touch **>10 files** for "one feature"
+- You can't define **any** acceptance criteria
+- You've been working **>1 hour without a commit**
+- Multiple features are **"in progress"**
+
+### One Feature At A Time (Per Agent)
+
+**RULE**: Each agent works on ONE feature at a time. Never have multiple features "in_progress" for the same agent.
+
+**Before starting new feature:**
+1. Check spec/FEATURES.md (or PRODUCT.md in Core mode) for any "in_progress" features *assigned to you*
+2. If found: **Complete that feature FIRST** or mark as "blocked"
+3. Only then start new feature
+
+**Why:** Multiple in-progress features per agent = unclear state, harder rollback, context confusion
+
+**Multi-Agent Note**: Multiple agents CAN work on different features simultaneously using Git worktrees. Each agent follows "one feature at a time" in their own worktree. See [`workflows/multi_agent_coordination.md`](../../workflows/multi_agent_coordination.md).
+
+---
+
 ## 🚨 CRITICAL: Anti-Hallucination Rules (NON-NEGOTIABLE)
 
 **Core Problem**: LLM hallucination undermines ALL quality principles. If the foundation is fabricated, tests and validation are meaningless.
@@ -52,6 +252,79 @@
 4. ❌ **NEVER guess or fabricate**: No "I think...", no plausible-sounding inventions
 
 **Examples of FORBIDDEN behavior**:
+
+### Rule 2: IMMEDIATELY Add to HUMAN_NEEDED.md When You Identify Blockers
+
+**🚨 CRITICAL**: If you identify something requiring human action, ADD IT TO HUMAN_NEEDED.md IMMEDIATELY. Don't just mention it in chat!
+
+**Always add to HUMAN_NEEDED.md when:**
+- Manual dependency installation needed (plugins, tools, system packages)
+- Credentials required (API keys, passwords, service accounts)
+- External account creation needed (GitHub, cloud services, payment providers)
+- Design decisions pending (framework choice, architecture, payment provider)
+- Access permissions required (repo access, production systems, admin rights)
+- Hardware/device needed (testing devices, specific OS, equipment)
+- User approval needed (budget, legal, compliance)
+
+**BAD** ❌:
+```
+Agent: "You'll need to install the GUT plugin manually via Godot Asset Library."
+[Agent continues without adding to HUMAN_NEEDED.md]
+[Session ends, blocker forgotten]
+```
+
+**GOOD** ✅:
+```
+Agent: "You'll need to install the GUT plugin manually. I'm adding this to HUMAN_NEEDED.md now."
+[Agent immediately updates HUMAN_NEEDED.md with HN-0001: Install GUT plugin]
+[Blocker documented, won't be forgotten]
+```
+
+**Rule**: Mention in chat AND add to HUMAN_NEEDED.md. If session ends abruptly, blocker still documented.
+
+### Rule 3: Auto-Journal at Natural Checkpoints (Don't Wait!)
+
+**🚨 CRITICAL**: Log progress automatically at natural checkpoints. Don't wait for session end or user reminders!
+
+**Natural checkpoints (log immediately):**
+- ✅ After completing a feature
+- ✅ After fixing a bug
+- ✅ After making an architectural decision
+- ✅ After discovering a blocker
+- ✅ After significant refactoring
+- ✅ Every ~30 minutes of focused work
+- ✅ Before context window compaction
+- ✅ Before ending session
+
+**Two logging levels:**
+
+1. **Quick log (SESSION_LOG.md)** - Append-only, token-efficient:
+```bash
+bash .agentic/tools/session_log.sh \
+  "Feature F-0003 complete" \
+  "Implemented user login with JWT. Tests passing." \
+  "files=auth.ts,tests=8"
+```
+
+2. **Milestone log (JOURNAL.md)** - Structured, comprehensive:
+```markdown
+### Session: YYYY-MM-DD HH:MM
+**Feature**: F-####
+**Accomplished**: [What was done]
+**Next steps**: [Immediate actions]
+**Blockers**: [Any items in HUMAN_NEEDED.md]
+```
+
+**When to use which:**
+- Quick checkpoint → SESSION_LOG.md (append-only, cheap)
+- Major milestone → JOURNAL.md (feature complete, session end)
+- Session end → Consolidate both
+
+**Why this matters**: If session crashes, logs preserve progress. Don't wait - log as you go!
+
+**See**: `.agentic/workflows/automatic_journaling.md` for detailed triggers and examples.
+
+### Rule 4: NEVER Make Things Up (Original Anti-Hallucination)
 - ❌ "React 18 has a useServerComponent hook" (NO IT DOESN'T - hallucinated)
 - ❌ "The API endpoint is probably /api/users/update" (don't guess)
 - ❌ "This library likely uses JWT for auth" (verify, don't assume)
@@ -261,6 +534,127 @@ Please provide:
   - **If core+product profile**: Also update `STATUS.md` after progress, update specs when behavior changes, write ADRs for tradeoffs
   - **If core+product profile**: Keep `spec/FEATURES.md` current if you change a feature's behavior/status/tests
   - **If core+product profile**: Keep `spec/NFR.md` current if change affects constraints
+
+## Work-In-Progress (WIP) Tracking - Prevent Work Loss
+
+**Purpose**: Never lose work when tokens run out, tools crash, or context gets compacted.
+
+### When to Use WIP Tracking
+
+**Start WIP when beginning significant work:**
+```bash
+# Starting a feature
+bash .agentic/tools/wip.sh start F-0005 "User authentication" "src/auth/*.ts,tests/auth/*.test.ts"
+
+# Or for Core profile (no feature IDs)
+bash .agentic/tools/wip.sh start "auth-implementation" "User login and JWT tokens" "src/auth/*.ts"
+```
+
+**Update WIP frequently** (~every 15 minutes or after significant step):
+```bash
+bash .agentic/tools/wip.sh checkpoint "Login endpoint complete, starting JWT validation"
+bash .agentic/tools/wip.sh checkpoint "Unit tests passing, working on integration tests"
+```
+
+**Complete WIP when work is done:**
+```bash
+bash .agentic/tools/wip.sh complete
+# Then commit your changes
+git add -A && git commit -m "feat: user authentication"
+```
+
+### Critical: Session Start WIP Check
+
+**ALWAYS check for interrupted work at session start** (first item in `session_start.md`):
+```bash
+bash .agentic/tools/wip.sh check
+```
+
+**If interrupted work detected:**
+- ⚠️ Previous agent stopped mid-task
+- WIP.md shows what was in progress
+- Git diff shows uncommitted changes
+- **STOP and tell user** about interrupted work
+- Offer: Continue | Review | Rollback
+
+**Example user message:**
+> "⚠️ Previous work on F-0005: User Authentication was interrupted 45 minutes ago.
+> I can see 3 uncommitted changes (src/auth/login.ts, src/auth/types.ts, tests/auth/login.test.ts).
+> Last checkpoint: 'Login endpoint done, starting JWT validation'
+> 
+> Would you like to:
+> 1. Continue from where we left off
+> 2. Review changes first (git diff)
+> 3. Roll back to last commit (git reset --hard)"
+
+### WIP and Context Compaction (Claude)
+
+**Claude PreCompact hook automatically updates WIP:**
+- Before context compaction, `PreCompact.sh` runs
+- Updates WIP checkpoint automatically
+- Logs to SESSION_LOG.md
+- After compaction, WIP preserves state
+
+**You don't need to do anything** - hooks handle it!
+
+### WIP and Environment Switching
+
+**When switching environments (Claude → Cursor → Copilot):**
+
+**Before switching:**
+```bash
+bash .agentic/tools/wip.sh checkpoint "Switching from Claude to Cursor"
+```
+
+**In new environment (session start):**
+```bash
+bash .agentic/tools/wip.sh check
+# Output: "✓ Recent checkpoint (3 minutes ago) - This may be an active handoff"
+# Continue seamlessly!
+```
+
+### WIP and Multi-Agent Coordination
+
+**WIP.md acts as a lock file for multi-agent scenarios:**
+- If WIP.md exists and is recent (<5 min): Another agent is working, wait or coordinate
+- If WIP.md exists and is stale (>60 min): Previous agent crashed, review and decide
+- Never start new work while another agent's WIP.md is fresh
+
+### Never Commit with WIP.md Present
+
+**Before commit checklist includes WIP check:**
+```bash
+# Check if WIP exists
+ls WIP.md 2>/dev/null
+
+# If exists:
+bash .agentic/tools/wip.sh complete  # Remove lock
+# Then commit
+```
+
+**Why**: WIP.md presence = work incomplete. Never commit incomplete work.
+
+### WIP Benefits
+
+**Prevents work loss from:**
+- ✅ Token limit reached mid-edit
+- ✅ Tool crashes or abrupt close
+- ✅ Context compaction (Claude)
+- ✅ Computer crashes
+- ✅ Environment switching mid-task
+- ✅ Forgot to log progress
+
+**Provides recovery:**
+- ✅ Shows what was in progress (feature, files, progress)
+- ✅ Shows git diff (what changed)
+- ✅ Shows last checkpoint (what was last done)
+- ✅ Offers options (continue, review, rollback)
+
+**Token cost**: Minimal (~50 tokens to create/update, ~200 tokens to check)
+
+**See full workflow**: `.agentic/workflows/work_in_progress.md`
+
+---
 
 ## Sequential Pipeline Mode (if enabled)
 
@@ -506,9 +900,17 @@ You can maintain FEATURES.md manually AND use migrations as complementary histor
 ### Enforcement Protocol
 
 **After creating any file:**
-1. Check if that file type is mentioned in CONTEXT_PACK.md
-2. If yes, update CONTEXT_PACK.md to replace placeholder with actual path
-3. If creating entry point, add it to "Where to look first"
+1. **ALWAYS `git add` the new file** (or explicitly note why it shouldn't be tracked)
+   - Untracked files = missing from deployment!
+   - Run `git status --short | grep '??'` to check for untracked files
+2. Check if that file type is mentioned in CONTEXT_PACK.md
+3. If yes, update CONTEXT_PACK.md to replace placeholder with actual path
+4. If creating entry point, add it to "Where to look first"
+
+**Before committing:**
+1. Run `git status` and review any untracked files (??) in project directories
+2. `git add` all new files in assets/, src/, tests/, spec/, docs/
+3. Or add to `.gitignore` if intentionally untracked
 
 **Before marking work complete:**
 1. Check STATUS.md reflects what you actually did
@@ -526,6 +928,71 @@ You can maintain FEATURES.md manually AND use migrations as complementary histor
 - FEATURES.md "Status: shipped" but "State: none" 
 - FEATURES.md "Code:" field is empty for implemented feature
 - FEATURES.md "Tests: complete" but test files don't exist
+
+## Agent Delegation Guidelines
+
+**Use specialized agents to save tokens and improve quality.**
+
+### Why Delegation Saves Tokens
+
+1. **Model cost**: haiku is ~10x cheaper than opus. Use haiku for exploration/search.
+2. **Fresh context**: Subagents start with focused context, not your entire conversation.
+3. **Parallel execution**: Multiple subagents can work simultaneously.
+
+See `.agentic/token_efficiency/agent_delegation_savings.md` for quantified savings (60-83% reduction typical).
+
+Available agents in `.agentic/agents/claude/subagents/`:
+- `explore-agent` - Quick codebase exploration (cheap/fast model)
+- `implementation-agent` - Write production code (mid-tier/powerful model)
+- `test-agent` - Write and run tests (mid-tier model)
+- `review-agent` - Code review and refactoring (mid-tier model)
+- `research-agent` - Web search, documentation lookup (cheap for lookups, mid-tier for analysis)
+
+### When to Delegate
+
+| Task Type | Delegate To | Model Tier |
+|-----------|-------------|------------|
+| "Where is X defined?" | explore-agent | Cheap/Fast |
+| "Find all uses of Y" | explore-agent | Cheap/Fast |
+| Implement feature (>20 lines) | implementation-agent | Mid-tier |
+| Complex implementation | implementation-agent | Powerful |
+| Write tests for code | test-agent | Mid-tier |
+| Review before commit | review-agent | Mid-tier |
+| Look up documentation | research-agent | Cheap/Fast |
+| Compare tech options | research-agent | Mid-tier |
+
+### Delegation Rules
+
+1. **For exploration/search tasks**: Spawn explore-agent with cheap/fast model
+2. **For implementation >50 lines**: Spawn implementation-agent
+3. **For test writing**: Spawn test-agent after implementation
+4. **For multi-file changes**: Consider parallel agents
+5. **Match model to task complexity**: Simple = cheap, Complex = powerful
+
+### Model Selection (Tier-Based)
+
+**Note**: Model names change frequently. Focus on the tier, not specific names.
+
+- **Cheap/Fast**: Exploration, lookups, simple searches (e.g., haiku, gpt-4o-mini, gemini-flash)
+- **Mid-tier**: Implementation, testing, reviews (e.g., sonnet, gpt-4o)
+- **Powerful**: Complex architecture, difficult bugs (e.g., opus, o1)
+
+Check your tool's current model offerings and map to these tiers.
+
+### Creating Project-Specific Agents
+
+For domain-specific tasks, create custom agents:
+
+```bash
+# See suggestions based on your project
+bash .agentic/tools/suggest-agents.sh
+
+# Create a custom agent
+bash .agentic/tools/create-agent.sh chess-rules
+bash .agentic/tools/create-agent.sh godot-ui
+```
+
+Custom agents live in `.agentic/agents/claude/subagents/` and can be invoked the same way.
 
 ## Efficient Tool Usage (Core+Product Mode)
 

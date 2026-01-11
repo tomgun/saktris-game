@@ -4,7 +4,7 @@
 # This hook runs when a Claude session is ending (user closes chat, etc.)
 # It reminds about uncommitted work and documentation updates.
 #
-# Triggered by: Claude Desktop Stop hook
+# Triggered by: Claude Code Stop hook
 # Timeout: 5 seconds
 
 set -euo pipefail
@@ -22,6 +22,17 @@ echo "👋 Session ending - final checks..."
 echo ""
 
 WARNINGS=0
+
+# 0. Check for WIP.md (work in progress lock)
+if [[ -f "WIP.md" ]]; then
+  echo "🚨 WIP.md exists - work may be incomplete!"
+  echo "   Feature in progress (check WIP.md for details)"
+  echo "   Options:"
+  echo "   - Complete work: bash .agentic/tools/wip.sh complete"
+  echo "   - Leave for next session: OK if intentional handoff"
+  echo "   - Review: git status && git diff"
+  WARNINGS=$((WARNINGS + 1))
+fi
 
 # 1. Check for uncommitted changes
 if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then

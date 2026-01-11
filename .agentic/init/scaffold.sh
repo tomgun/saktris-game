@@ -114,17 +114,40 @@ if [[ ! -f "${ROOT_DIR}/AGENTS.md" ]]; then
   cat > "${ROOT_DIR}/AGENTS.md" <<'EOF'
 # AGENTS.md
 
-This repo uses the agentic framework located at `.agentic/`.
+> **Note**: This file is a REFERENCE document. It is NOT auto-loaded by AI tools.
+> The auto-loaded files (CLAUDE.md, .cursorrules, etc.) point to this file.
+
+This repo uses the **Agentic Framework** located at `.agentic/`.
 
 ## Non-negotiables
-- Add/update tests for new or changed logic.
-- Keep `CONTEXT_PACK.md` current when architecture changes.
-- Keep `PRODUCT.md` up to date with decisions and completed capabilities.
-- Add to `HUMAN_NEEDED.md` when you are blocked.
-- Keep `JOURNAL.md` current (session summaries).
-- If this repo uses the Core+Product profile: keep `STATUS.md` and `/spec/*` truthful.
 
-Full rules: `.agentic/agents/shared/agent_operating_guidelines.md`
+**Document blockers immediately:**
+- When you identify something requiring human action (install dependency, make decision, access credentials), ADD IT TO `HUMAN_NEEDED.md` IMMEDIATELY
+- Don't just mention it in chat - document it so it's not forgotten
+
+**Keep documentation current:**
+- Update `JOURNAL.md` before ending ANY session (if session ends abruptly, JOURNAL is the only record)
+- Keep `PRODUCT.md` up to date with decisions and completed capabilities
+- Keep `CONTEXT_PACK.md` current when architecture changes
+- If this repo uses the Core+Product profile: keep `STATUS.md` and `/spec/*` truthful
+
+**Code quality:**
+- Add/update tests for new or changed logic
+- Run smoke tests before claiming features work
+- Separate business logic from UI for testability
+
+## Full Guidelines
+
+See `.agentic/agents/shared/agent_operating_guidelines.md`
+
+## Tool-Specific Files
+
+These are auto-loaded by your AI tool:
+- **Claude Code**: `CLAUDE.md`
+- **Cursor**: `.cursorrules`
+- **GitHub Copilot**: `.github/copilot-instructions.md`
+
+To regenerate: `bash .agentic/tools/setup-agent.sh all`
 EOF
   echo "NEW : ${ROOT_DIR}/AGENTS.md (entrypoint)"
 else
@@ -133,8 +156,25 @@ fi
 
 if [[ "${PROFILE}" == "core" ]]; then
   echo ""
+  # Set up tool-specific auto-loaded files
+  echo "Setting up AI tool integration..."
+  if [[ -f "${ROOT_DIR}/.agentic/tools/setup-agent.sh" ]]; then
+    bash "${ROOT_DIR}/.agentic/tools/setup-agent.sh" all 2>/dev/null || true
+  fi
+  echo ""
   echo "Done (Core). Next: tell your agent to initialize using .agentic/init/init_playbook.md"
+  echo ""
+  echo "Optional: For multi-agent development, run:"
+  echo "  bash .agentic/tools/setup-agent.sh pipeline       # Pipeline infrastructure"
+  echo "  bash .agentic/tools/setup-agent.sh cursor-agents  # Cursor-specific agents"
   echo "To enable Product Management later: bash .agentic/tools/enable-product-management.sh"
+  
+  # Note about tool setup (don't auto-create - let init_playbook ask)
+  echo ""
+  echo "Tool-specific setup:"
+  echo "  The agent will ask which AI tool(s) you use during initialization."
+  echo "  Or run manually: bash .agentic/tools/setup-agent.sh <tool>"
+  echo "  Available: claude, cursor, copilot, codex, gemini"
   exit 0
 fi
 
@@ -197,6 +237,7 @@ fi
 
 copy_if_missing "${ROOT_DIR}/.agentic/spec/OVERVIEW.template.md" "${ROOT_DIR}/spec/OVERVIEW.md"
 copy_if_missing "${ROOT_DIR}/.agentic/spec/FEATURES.template.md" "${ROOT_DIR}/spec/FEATURES.md"
+copy_if_missing "${ROOT_DIR}/.agentic/spec/ISSUES.template.md" "${ROOT_DIR}/spec/ISSUES.md"
 copy_if_missing "${ROOT_DIR}/.agentic/spec/LESSONS.template.md" "${ROOT_DIR}/spec/LESSONS.md"
 copy_if_missing "${ROOT_DIR}/.agentic/spec/NFR.template.md" "${ROOT_DIR}/spec/NFR.md"
 copy_if_missing "${ROOT_DIR}/.agentic/spec/REFERENCES.template.md" "${ROOT_DIR}/spec/REFERENCES.md"
@@ -216,6 +257,31 @@ else
   fi
 fi
 
-echo "Done. Next: run the agent-guided init in .agentic/init/init_playbook.md"
+# Set up tool-specific auto-loaded files
+echo ""
+echo "Setting up AI tool integration..."
+if [[ -f "${ROOT_DIR}/.agentic/tools/setup-agent.sh" ]]; then
+  bash "${ROOT_DIR}/.agentic/tools/setup-agent.sh" all 2>/dev/null || true
+  
+  # For Core+PM: also set up pipeline infrastructure for multi-agent work
+  echo ""
+  echo "Setting up multi-agent pipeline infrastructure..."
+  bash "${ROOT_DIR}/.agentic/tools/setup-agent.sh" pipeline 2>/dev/null || true
+fi
+
+echo ""
+echo "Done (Core+PM). Next: run the agent-guided init in .agentic/init/init_playbook.md"
+echo ""
+echo "Multi-agent setup:"
+echo "  - Pipeline infrastructure: ✓ Created (AGENTS_ACTIVE.md, .agentic/pipeline/)"
+echo "  - Agent roles: Available in .agentic/agents/roles/"
+echo "  - To copy roles to Cursor: bash .agentic/tools/setup-agent.sh cursor-agents"
+
+# Note about tool setup (don't auto-create - let init_playbook ask)
+echo ""
+echo "Tool-specific setup:"
+echo "  The agent will ask which AI tool(s) you use during initialization."
+echo "  Or run manually: bash .agentic/tools/setup-agent.sh <tool>"
+echo "  Available: claude, cursor, copilot, codex, gemini"
 
 

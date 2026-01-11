@@ -6,6 +6,146 @@
 
 ---
 
+# 🤖 PROACTIVE START (Do This Automatically!)
+
+**When a new session starts (first message, tokens reset, or user returns), automatically:**
+
+## Step 1: Quick Context Scan (Silent)
+
+```bash
+# Read these silently (don't dump to user)
+cat STATUS.md 2>/dev/null || cat PRODUCT.md 2>/dev/null
+cat HUMAN_NEEDED.md 2>/dev/null | head -20
+ls WIP.md 2>/dev/null
+```
+
+## Step 2: Greet User with Recap
+
+**Always start with a proactive greeting like this:**
+
+```
+👋 Welcome back! Here's where we are:
+
+**Last session**: [Summary from JOURNAL.md or STATUS.md]
+**Current focus**: [From STATUS.md "Current focus" or PRODUCT.md]
+**Progress**: [What's done, what's in progress]
+
+**Next steps** (pick one or tell me something else):
+1. [Next planned task from STATUS.md]
+2. [Second option if exists]
+3. [Review blockers in HUMAN_NEEDED.md - if any exist]
+
+What would you like to work on?
+```
+
+## Step 3: Handle Special Cases
+
+**If WIP.md exists** (interrupted work):
+```
+⚠️ Previous work was interrupted!
+Feature: [from WIP.md]
+Files changed: [from WIP.md or git diff]
+
+Options:
+1. Continue from checkpoint
+2. Review changes first (git diff)
+3. Roll back to last commit
+```
+
+**If HUMAN_NEEDED.md has unresolved items**:
+```
+📋 There are [N] items waiting for your input:
+- [H-0001]: [Brief description]
+
+Want to address these first, or continue with planned work?
+```
+
+**If upgrade pending**:
+```
+🔄 Framework was upgraded to v[X.Y.Z]!
+I'll quickly apply the updates, then we'll continue.
+[Handle upgrade, then return to normal greeting]
+```
+
+---
+
+**Why proactive**: User shouldn't have to ask "where were we?" - you should tell them automatically.
+
+---
+
+## 🚨 THEN: Check for Interrupted Work (CRITICAL!)
+
+**BEFORE doing anything else, check if previous work was interrupted:**
+
+- [ ] **Run WIP check**:
+  ```bash
+  bash .agentic/tools/wip.sh check
+  ```
+
+**If interrupted work detected (exit code 1):**
+- ⚠️ Previous session stopped mid-task (tokens out, crash, or abrupt close)
+- WIP.md shows what was in progress
+- Git diff shows uncommitted changes
+- **STOP and review before continuing!**
+
+**Recovery options:**
+1. **Continue work** - Resume from checkpoint (if progress looks good)
+2. **Review changes** - `git diff` to see what changed, then decide
+3. **Rollback** - `git reset --hard` if changes incomplete/broken
+
+**Tell user about interrupted work:**
+> "⚠️ Previous work on [Feature] was interrupted [X] minutes ago.
+> I can see [Y] uncommitted changes. Would you like to:
+> 1. Continue from where we left off
+> 2. Review changes first (git diff)
+> 3. Roll back to last commit"
+
+**If no interrupted work (exit code 0):**
+- ✅ Clean state, proceed with session start
+
+**Why this is FIRST:**
+- Prevents building on top of incomplete/broken changes
+- Git diff shows true state vs. what docs claim
+- Uncommitted changes may conflict with new work
+- Lost work can be recovered instead of overwritten
+
+---
+
+## 🔄 SECOND: Check for Framework Upgrade
+
+**🚨 IMPORTANT: The marker file IS the upgrade notification. Don't search elsewhere!**
+
+- [ ] **Check for upgrade marker**:
+  ```bash
+  cat .agentic/.upgrade_pending 2>/dev/null || echo "No upgrade pending"
+  ```
+
+**If `.agentic/.upgrade_pending` exists:**
+- ⚠️ **STOP AND READ THE FILE** - it contains everything you need
+- The file tells you:
+  - From/to versions
+  - Whether STACK.md was auto-updated
+  - Complete TODO checklist
+  - Changelog link
+- **Follow the TODO list in the file (it's 5-6 items)**
+- **Delete the file when done**: `rm .agentic/.upgrade_pending`
+
+**CRITICAL - DON'T WASTE TOKENS:**
+- ❌ Don't search through `.agentic/` randomly for upgrade info
+- ❌ Don't read multiple files looking for version info
+- ✅ Just read `.upgrade_pending` - it has everything
+- ✅ The file tells you exactly what to do
+
+**If no marker exists:**
+- ✅ No recent upgrade, proceed to next check
+
+**Why this design:**
+- ONE file = complete upgrade context
+- No version comparison needed every session
+- Agent handles it once → deletes → done
+
+---
+
 ## Essential Reads (Always)
 
 - [ ] **Read `CONTEXT_PACK.md`** (≈500-1000 tokens)
@@ -50,6 +190,17 @@
 - [ ] **If `quality_validation_enabled: yes`**: Verify quality checks exist
   - Check if `quality_checks.sh` exists at repo root
   - If missing, offer to create based on tech stack
+
+## Agent Delegation Check
+
+- [ ] **Review available agents** (for delegation opportunities)
+  ```bash
+  ls .agentic/agents/claude/subagents/ 2>/dev/null || echo "No subagents defined"
+  ```
+  - Consider if subtasks can be delegated to specialized agents
+  - Use `explore-agent` (haiku) for codebase searches
+  - Use `research-agent` (haiku) for documentation lookups
+  - See Agent Delegation Guidelines in operating guidelines
 
 ## Blockers Check
 

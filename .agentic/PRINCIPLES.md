@@ -116,6 +116,109 @@
 
 ---
 
+### Deterministic Behavior & Enforcement
+
+**What**: Agents should produce consistent, predictable results through verification and gates, not just documentation conventions.
+
+**Why**:
+- Documentation can be ignored (agents may skip reading)
+- Guidelines can be misunderstood or forgotten
+- Compliance varies across agent models and versions
+- Critical workflows must be reliable, not "usually" reliable
+- Failure should be detected early, not after shipping
+
+**How**:
+- **Verification scripts > Documentation**: `wip.sh check` is mandatory, not optional
+- **Gates that block > Guidelines that advise**: Pre-commit hooks enforce, checklists advise
+- **Explicit protocols > Implicit expectations**: `session_start.md` specifies exact steps
+- **Automated checks > Human vigilance**: Hooks validate before commits
+- **Structured data > Free text**: YAML frontmatter enables machine validation
+
+**Enforcement Mechanisms**:
+
+1. **Session Start Protocol** (Mandatory):
+   - `.agentic/checklists/session_start.md` - FIRST step is `wip.sh check`
+   - Detects interrupted work, prevents building on incomplete changes
+   - Non-negotiable: WIP check returns exit code 1 if interrupted work found
+
+2. **Commit Gates** (Blocking):
+   - `.agentic/hooks/pre-commit-check.sh` - Validates before commit allowed
+   - Checks: WIP.md doesn't exist, shipped features have acceptance criteria
+   - Exit code 1 blocks commit if validation fails
+
+3. **Feature Completion Protocol** (Validated):
+   - `.agentic/workflows/definition_of_done.md` - Explicit checklist
+   - `feature.sh` enforces valid status transitions (planned → in_progress → shipped)
+   - Never mark "shipped" without tests + acceptance criteria
+
+4. **Token-Efficient Operations** (Append-only):
+   - `journal.sh`, `status.sh`, `feature.sh`, `blocker.sh` - Surgical edits
+   - Avoid full-file rewrites that waste tokens
+   - 40x more efficient than read-modify-write pattern
+
+5. **Recovery Protocol** (Structured):
+   - WIP tracking + git diff integration
+   - Clear options: Continue | Review | Rollback
+   - No guessing about interrupted work state
+
+**Example (Before - Unreliable)**:
+```markdown
+# agent_operating_guidelines.md
+"Agents should update FEATURES.md when completing features."
+
+Result: Some agents do, some forget, some partially update.
+Token waste: Full file read (1200 tokens) for status change.
+```
+
+**Example (After - Enforced)**:
+```bash
+# Token-efficient script enforces valid states
+bash .agentic/tools/feature.sh F-0005 status shipped
+# Validates: status is valid, file format correct
+# Updates: Single line, no full read
+# Cost: 50 tokens vs. 1200 tokens
+# Outcome: Deterministic, always correct
+
+# Pre-commit hook blocks if incomplete
+bash .agentic/hooks/pre-commit-check.sh
+# Exit 1 if WIP.md exists (work incomplete)
+# Exit 1 if shipped features lack acceptance criteria
+# Exit 0 only if all gates pass
+```
+
+**Why This Matters**:
+
+**Reliability over Convenience**:
+- Convenient: "Agents should read session_start.md"
+- Reliable: `wip.sh check` returns exit code, blocks if interrupted
+
+**Early Detection**:
+- Problem: Agent commits incomplete work, builds on it, compounds errors
+- Solution: Pre-commit hook detects WIP.md, blocks commit until complete
+
+**Cross-Agent Consistency**:
+- Problem: Different AI models interpret guidelines differently
+- Solution: Scripts enforce same behavior regardless of agent
+
+**Token Economics**:
+- Problem: Reading JOURNAL.md (2000 tokens) to append entry
+- Solution: `journal.sh` appends without read (50 tokens), 40x savings
+
+**Connection to Other Principles**:
+- **Context Efficiency**: Token-efficient scripts reduce waste
+- **Quality by Design**: Gates prevent shipping incomplete features
+- **Human-Agent Partnership**: Scripts enforce contracts reliably
+- **Sustainable Long-Term**: Determinism enables scaling to large projects
+
+**Anti-patterns**:
+- ❌ "Agents should..." without enforcement (hope-based development)
+- ❌ Full file rewrites for single field updates (token waste)
+- ❌ Advisory checklists without validation (ignored under pressure)
+- ❌ No detection of interrupted work (build on broken foundations)
+- ❌ Commit first, validate later (too late to prevent problems)
+
+---
+
 ## Token Economics Principles
 
 ### Durable Artifacts Prevent Repeated Re-Reading
@@ -175,6 +278,33 @@
 
 ---
 
+### Agent Delegation Saves Tokens
+
+**What**: Specialized agents with cheaper models handle specific tasks more efficiently than one powerful agent doing everything.
+
+**Why**:
+- Cheap/fast models are ~10x less expensive than powerful ones
+- Simple tasks (exploration, lookups) don't need expensive reasoning
+- Subagents get fresh, focused context (not full conversation history)
+- Parallel execution for independent tasks
+
+**How**:
+- Use **tier-based model selection** (not specific model names):
+  - Cheap/Fast tier: Exploration, lookups, simple searches
+  - Mid-tier: Implementation, testing, reviews
+  - Powerful tier: Complex architecture, difficult bugs
+- Delegate exploration to explore-agent (cheap/fast)
+- Delegate implementation to implementation-agent (mid-tier)
+- Create project-specific agents for domain expertise
+
+**Example**: Instead of opus analyzing "where is auth implemented?" → spawn explore-agent with haiku. Saves ~90% tokens.
+
+**Anti-pattern**: ❌ Using the most powerful model for every task. ❌ Hardcoding specific model names (they change frequently).
+
+**Reference**: `.agentic/token_efficiency/agent_delegation_savings.md`
+
+---
+
 ### Sequential Agents Optimize Context
 
 **What**: Specialized agents work sequentially, each loading only role-specific context.
@@ -199,25 +329,74 @@
 
 ## Quality & Testing Principles
 
-### Test-Driven Development as Default
+### Small Batch Development (NON-NEGOTIABLE)
 
-**What**: TDD (write tests first) is the RECOMMENDED mode, not just an option.
+**What**: Work in small, isolated batches at the FEATURE level. One feature at a time, commit frequently.
 
-**Why**:
-- **Token economics**: Smaller increments, clearer progress, less rework
-- **Forces testability**: Testable code by design, no later refactoring
-- **Better for context resets**: "Last test passed" is clear resumption point
-- **Quality**: Tests catch bugs before they ship
+**Why (Critical for Long-Term Quality)**:
+- **Easy rollback**: Small changes = easy to verify = easy to rollback
+- **Known-good checkpoints**: If something goes wrong, most of the software still works
+- **Clear ownership**: One feature at a time = unambiguous responsibility
+- **Quality assurance**: Frequent commits = smaller, more reviewable changes
 
 **How Enforced**:
-- STACK.template.md defaults to `development_mode: tdd`
-- tdd_mode.md documents the workflow
-- agent_operating_guidelines.md checks development_mode
-- Red-green-refactor cycle
+- ONE feature at a time per agent (multi-agent teams use worktrees for parallel work)
+- MAX 5-10 files per commit (stop and re-plan if more)
+- COMMIT when feature's acceptance tests pass
+- pre-commit-check.sh warns when batch size exceeds threshold
+- Agents check for "in_progress" features before starting new work
 
-**Example**: Agent writes failing test for CSV export (RED), implements minimal code (GREEN), refactors for clarity (REFACTOR), commits. Next test.
+**Rules**:
+1. Acceptance criteria MUST exist before implementation (even rough)
+2. Implement feature → verify with tests → commit
+3. Update specs with discoveries (new edge cases, ideas, issues)
+4. If >10 files touched for "one feature", stop and re-plan
 
-**Anti-pattern**: ❌ Implementing feature completely, then "adding tests". ❌ Tests that just assert implementation details.
+**STOP and re-plan if**:
+- You need to touch >10 files for "one task"
+- You can't define any acceptance criteria
+- You've been working >1 hour without a commit
+- Multiple features are "in progress"
+
+**Example**: Agent implements "user login" feature. It touches 5 files (route, controller, service, test, spec). Tests pass. Commit. Move to next feature.
+
+**Anti-pattern**: ❌ Working on authentication, session management, and password reset all at once. ❌ Commits with 30 files changed. ❌ "I'll commit everything at the end of the day."
+
+---
+
+### Acceptance-Driven Development
+
+**What**: Features are defined by acceptance criteria. AI implements, then tests verify. Specs evolve with discoveries.
+
+**Why**:
+- **AI speed**: AI can generate large working chunks quickly - micro-TDD may be slower than needed
+- **Discovery process**: Specs are discovered during implementation, not fully known upfront
+- **Acceptance tests**: The critical gate that catches regressions and unwanted changes
+- **Realistic workflow**: Accommodates the iterative nature of software development
+
+**How Enforced**:
+- Acceptance criteria MUST exist before implementation (even if rough)
+- AI implements feature (can be large chunk)
+- Acceptance tests verify feature works as expected
+- Specs updated with discoveries (new edge cases, issues found)
+- TDD remains an OPTION for those who prefer it
+
+**The Flow**:
+1. Define feature + acceptance criteria (can be rough initially)
+2. AI implements feature
+3. Write/update tests to verify acceptance criteria
+4. Update specs with discoveries (new requirements, edge cases)
+5. Commit when acceptance tests pass
+6. Move to next feature
+
+**Example**: 
+- Acceptance: "User can log in with email/password"
+- AI implements login flow (may be 200 lines)
+- Write acceptance test: login with valid credentials succeeds
+- Discovery: "Need rate limiting for failed attempts" → add to specs
+- Tests pass → commit → next feature
+
+**Anti-pattern**: ❌ Starting implementation with no acceptance criteria at all. ❌ Never updating specs when discoveries are made. ❌ Treating TDD as the only valid approach.
 
 ---
 
@@ -310,6 +489,30 @@ F-0005: CSV Export
 - `State: complete` → All code written, tests pass
 
 **Anti-pattern**: ❌ `State: none` but `Code: src/export.py` field is filled. ❌ Never updating State field as code is written.
+
+---
+
+### No Untracked Files in Project Directories
+
+**What**: New files must be git tracked or explicitly ignored. Untracked files in project directories cause deployment failures.
+
+**Why**:
+- Agents create files but sometimes forget to `git add`
+- Untracked files don't get committed → missing from deployment
+- Silent failures are worse than loud failures
+- Prevention is cheaper than debugging production
+
+**How**:
+- Pre-commit hook (check 6/6) warns about untracked files
+- Session end checklist includes untracked file review
+- Agent guidelines: "After creating any file, always `git add` it"
+- `check-untracked.sh` tool for manual verification
+
+**Example**: Agent creates `assets/sounds/click.wav` but forgets to track. Pre-commit warns: "⚠ Untracked files in assets/". Developer adds it before deployment breaks.
+
+**Anti-pattern**: ❌ Assuming all files get tracked automatically. ❌ Ignoring pre-commit warnings about untracked files.
+
+**Reference**: `.agentic/tools/check-untracked.sh`, `.agentic/hooks/pre-commit-check.sh`
 
 ---
 
@@ -778,8 +981,8 @@ Type 'a' or 'b':
 
 ---
 
-**Last Updated**: 2026-01-03  
-**Framework Version**: 0.2.4  
+**Last Updated**: 2025-01-11  
+**Framework Version**: 0.9.7  
 
 **Note**: Principles evolve, but slowly. Major changes to core philosophy require strong justification and community discussion.
 

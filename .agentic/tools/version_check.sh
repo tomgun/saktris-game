@@ -1,70 +1,68 @@
 #!/usr/bin/env bash
+# version_check.sh: Check if framework was upgraded since last session
+# Usage: bash .agentic/tools/version_check.sh
+# Exit codes: 0 = versions match, 1 = upgrade detected, 2 = error
+
 set -euo pipefail
 
-ROOT_DIR="$(pwd)"
-STACK_FILE="${ROOT_DIR}/STACK.md"
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-echo "=== Version Check ==="
-echo
-
-if [[ ! -f "${STACK_FILE}" ]]; then
-  echo "ERROR: STACK.md not found."
-  exit 1
-fi
-
-# Extract versions from STACK.md
-echo "Declared versions in STACK.md:"
-echo
-
-# This is a simplified version - would need to be enhanced per project type
-# to parse package.json, requirements.txt, go.mod, etc.
-
-# Check if package.json exists (Node.js project)
-if [[ -f "${ROOT_DIR}/package.json" ]]; then
-  echo "--- Node.js Dependencies ---"
-  
-  # Check major frameworks declared in STACK.md
-  for framework in "next" "react" "vue" "svelte" "express" "fastify"; do
-    STACK_VERSION=$(grep -i "${framework}" "${STACK_FILE}" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 || echo "")
-    if [[ -n "${STACK_VERSION}" ]]; then
-      # Check in package.json
-      PACKAGE_VERSION=$(grep "\"${framework}\"" "${ROOT_DIR}/package.json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "not found")
-      
-      if [[ "${PACKAGE_VERSION}" == "not found" ]]; then
-        echo "⚠️  ${framework}: Declared in STACK.md (${STACK_VERSION}) but not in package.json"
-      elif [[ "${PACKAGE_VERSION}" == "${STACK_VERSION}"* ]]; then
-        echo "✅ ${framework}: ${PACKAGE_VERSION} (matches STACK.md ${STACK_VERSION})"
-      else
-        echo "❌ ${framework}: ${PACKAGE_VERSION} in package.json, STACK.md declares ${STACK_VERSION}"
-      fi
+# Get framework version from .agentic/VERSION
+FRAMEWORK_VERSION=""
+if [[ -f ".agentic/VERSION" ]]; then
+    FRAMEWORK_VERSION=$(cat .agentic/VERSION | tr -d '[:space:]')
+else
+    # Fallback: check STACK.md for framework version (older projects)
+    if [[ -f "STACK.md" ]]; then
+        FRAMEWORK_VERSION=$(grep -E "^\s*-?\s*Version:" STACK.md | head -1 | sed -E 's/.*Version:\s*([0-9.]+).*/\1/' | tr -d '[:space:]')
+        if [[ -n "$FRAMEWORK_VERSION" ]]; then
+            echo -e "${YELLOW}Note: .agentic/VERSION not found, using STACK.md version${NC}"
+        fi
     fi
-  done
-fi
-
-# Check if requirements.txt exists (Python project)
-if [[ -f "${ROOT_DIR}/requirements.txt" ]]; then
-  echo
-  echo "--- Python Dependencies ---"
-  
-  for framework in "django" "fastapi" "flask" "pytest"; do
-    STACK_VERSION=$(grep -i "${framework}" "${STACK_FILE}" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 || echo "")
-    if [[ -n "${STACK_VERSION}" ]]; then
-      REQUIREMENTS_VERSION=$(grep -i "^${framework}==" "${ROOT_DIR}/requirements.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "not found")
-      
-      if [[ "${REQUIREMENTS_VERSION}" == "not found" ]]; then
-        echo "⚠️  ${framework}: Declared in STACK.md (${STACK_VERSION}) but not in requirements.txt"
-      elif [[ "${REQUIREMENTS_VERSION}" == "${STACK_VERSION}"* ]]; then
-        echo "✅ ${framework}: ${REQUIREMENTS_VERSION} (matches STACK.md ${STACK_VERSION})"
-      else
-        echo "❌ ${framework}: ${REQUIREMENTS_VERSION} in requirements.txt, STACK.md declares ${STACK_VERSION}"
-      fi
+    
+    if [[ -z "$FRAMEWORK_VERSION" ]]; then
+        echo -e "${RED}Error: Cannot determine framework version${NC}"
+        echo "Missing: .agentic/VERSION file"
+        echo "Missing: Version field in STACK.md"
+        echo ""
+        echo "If recently upgraded, add version manually:"
+        echo "  echo '0.9.1' > .agentic/VERSION"
+        exit 2
     fi
-  done
 fi
 
-echo
-echo "💡 Tip: Keep STACK.md versions synchronized with dependency files."
-echo "   Run after: npm install, pip install, go get, etc."
-echo
-echo "   See: .agentic/workflows/documentation_verification.md"
+# Get recorded version from STACK.md
+RECORDED_VERSION=""
+if [[ -f "STACK.md" ]]; then
+    RECORDED_VERSION=$(grep -E "^\s*-?\s*Version:" STACK.md | head -1 | sed -E 's/.*Version:\s*([0-9.]+).*/\1/' | tr -d '[:space:]')
+fi
 
+if [[ -z "$RECORDED_VERSION" ]]; then
+    echo -e "${YELLOW}Warning: Could not read version from STACK.md${NC}"
+    echo "Framework version: $FRAMEWORK_VERSION"
+    exit 2
+fi
+
+# Compare versions
+if [[ "$FRAMEWORK_VERSION" == "$RECORDED_VERSION" ]]; then
+    echo -e "${GREEN}✓ Versions match: $FRAMEWORK_VERSION${NC}"
+    exit 0
+else
+    echo -e "${YELLOW}⚠ FRAMEWORK UPGRADE DETECTED${NC}"
+    echo ""
+    echo "  STACK.md version:  $RECORDED_VERSION (old)"
+    echo "  Framework version: $FRAMEWORK_VERSION (new)"
+    echo ""
+    echo "Post-upgrade actions needed:"
+    echo "  1. Read .agentic/START_HERE.md for new workflows"
+    echo "  2. Check spec formats: python3 .agentic/tools/validate_specs.py"
+    echo "  3. Review CHANGELOG for breaking changes"
+    echo "  4. Update STACK.md version to match"
+    echo ""
+    echo "See: .agentic/agents/shared/agent_operating_guidelines.md → 'After Framework Upgrade'"
+    exit 1
+fi

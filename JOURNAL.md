@@ -10,6 +10,67 @@
 
 ## Session Log (most recent first)
 
+### Session: 2026-01-11
+
+**Focus**: Bug fix - King capture not ending game
+
+**Completed**:
+- Fixed game not properly ending when king is captured
+- Game now correctly detects king capture as game over
+
+**Commit**: `69c9813`
+
+---
+
+### Session: 2026-01-10
+
+**Focus**: Web build fixes, AI threading
+
+**Completed**:
+- Fixed web build: added import step for proper asset loading
+- Implemented threaded AI calculation (background thread keeps UI/animations smooth)
+- Added audio files and theme system to git tracking
+
+**Commits**: `0c8d6f8`, `53ba4d2`
+
+---
+
+### Session: 2026-01-09
+
+**Focus**: AI optimization, Multiple piece sets (F-0018)
+
+**Completed**:
+- Optimized AI with move/undo pattern for 10-20x speedup
+  - Instead of cloning board state, use make_move/undo_move
+  - Dramatically faster minimax search
+- Implemented multiple piece sets (F-0018):
+  - Standard flat pieces (CBurnett)
+  - Spatial 3D-style pieces with depth/shadows
+  - Toggle in settings
+
+**Commits**: `a15b90a`, `a656872`
+
+---
+
+### Session: 2026-01-08
+
+**Focus**: Timer mode (F-0016), Draw rules (F-0017)
+
+**Completed**:
+- Implemented timer mode / chess clock (F-0016):
+  - Standard time controls (bullet, blitz, rapid, classical)
+  - Per-player countdown
+  - Time-out detection
+- Implemented draw rules (F-0017):
+  - 50-move rule (no pawn moves or captures)
+  - Threefold repetition detection
+  - Insufficient material detection (K vs K, K+B vs K, K+N vs K)
+- Framework alignment + F-0014 tests + GDScript fixes
+
+**Commits**: `aed8ef9`, `fcc65f3`, `5bd65ea`
+
+---
+
 ### Session: 2026-01-07 (continued)
 
 **Focus**: Physics Bump Mode (F-0012)
@@ -256,3 +317,14 @@
 - Install GUT and verify tests pass
 - Create board visual (F-0002)
 - Create piece sprites or use placeholder graphics
+
+### Session: 2026-01-11 21:14 - F-0019 Mobile View implementation
+
+**Accomplished**:
+- - Implemented mobile layout switching (< 800px width)\n- Added touch input support (tap, drag, long-press for arrows)\n- Created mobile UI overlay (top status bar, bottom controls)\n- Updated viewport meta tag for proper mobile scaling\n- Added mobile-specific queue display and New Game button
+
+**Next steps**:
+- - Test on actual mobile device\n- Fix any UX issues discovered in testing\n- Mark feature as complete after acceptance
+
+**Blockers**: Need to smoke test on real mobile device
+

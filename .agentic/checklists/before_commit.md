@@ -8,6 +8,25 @@
 
 ---
 
+## Work-In-Progress Check (FIRST!)
+
+- [ ] **WIP.md must be completed**
+  ```bash
+  # Check if WIP lock exists
+  ls WIP.md 2>/dev/null
+  ```
+  
+  - **If WIP.md exists**: Work is not yet complete!
+    - Complete work first: `bash .agentic/tools/wip.sh complete`
+    - This removes the WIP lock file
+    - **NEVER commit while WIP.md exists** (indicates incomplete work)
+  
+  - **If WIP.md does not exist**: ✓ OK to proceed with commit checks
+
+**Why**: WIP.md is a lock file that tracks in-progress work. If it exists, the work is not ready for commit.
+
+---
+
 ## Code Quality
 
 - [ ] **All tests pass**
@@ -162,6 +181,17 @@ docs(readme): update installation instructions
 ---
 
 ## Final Checks
+
+- [ ] **Check for untracked files** (CRITICAL - prevents deployment issues!)
+  ```bash
+  git status --short | grep '??'
+  # Or: bash .agentic/tools/check-untracked.sh
+  ```
+  - Check: assets/, src/, tests/, spec/, docs/ for untracked files
+  - **If you created new files, they MUST be git added!**
+  - Either: `git add <file>` to track
+  - Or: Add to `.gitignore` if intentionally untracked
+  - **WARNING**: Untracked files = missing from deployment!
 
 - [ ] **Git status clean** (no unexpected files)
   - `git status` shows only intended changes
