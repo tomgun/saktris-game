@@ -121,6 +121,7 @@ func initialize(state: GameState) -> void:
 	game_state.ai_thinking_started.connect(_on_ai_thinking_started)
 	game_state.ai_thinking_finished.connect(_on_ai_thinking_finished)
 	game_state.ai_progress.connect(_on_ai_progress)
+	game_state.triplet_clearing.connect(_on_triplet_clearing)
 	game_state.board.piece_moved.connect(_on_piece_moved)
 	game_state.board.piece_captured.connect(_on_piece_captured)
 	game_state.board.piece_placed.connect(_on_piece_placed)
@@ -133,6 +134,10 @@ func initialize(state: GameState) -> void:
 	_refresh_pieces()
 	_update_turn_display()
 	_update_arrival_display()
+
+	# Play game start sound
+	if AudioManager:
+		AudioManager.play_game_start()
 
 	# Check if AI goes first
 	if game_state.is_ai_turn():
@@ -421,6 +426,16 @@ func _on_turn_changed(_player: int) -> void:
 
 
 func _on_status_changed(new_status: GameState.Status) -> void:
+	# Play status sounds
+	if AudioManager:
+		match new_status:
+			GameState.Status.CHECK:
+				AudioManager.play_check()
+			GameState.Status.CHECKMATE:
+				AudioManager.play_checkmate()
+			GameState.Status.STALEMATE:
+				AudioManager.play_stalemate()
+
 	_update_status_display(new_status)
 
 
@@ -430,6 +445,10 @@ func _on_game_over(winner: int, reason: String) -> void:
 
 
 func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
+	# Play move sound
+	if AudioManager:
+		AudioManager.play_move(piece.type)
+
 	# Animate the piece movement
 	if from in piece_sprites:
 		var sprite = piece_sprites[from]
@@ -453,6 +472,10 @@ func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
 
 
 func _on_piece_captured(pos: Vector2i, _piece: Piece, attacker_from: Vector2i) -> void:
+	# Play capture sound
+	if AudioManager:
+		AudioManager.play_capture()
+
 	if pos in piece_sprites:
 		var sprite: PieceSprite = piece_sprites[pos]
 		piece_sprites.erase(pos)
@@ -605,13 +628,16 @@ func _update_physics(delta: float) -> void:
 				var push_dir := (other_center - bumping_center).normalized()
 				board_sprite.nudge(push_dir, 0.4)
 
-				# Only spawn sparks if we haven't recently for this pair
+				# Only spawn sparks/sound if we haven't recently for this pair
 				var collision_key := _get_collision_key(bumping, board_sprite)
 				var now := Time.get_ticks_msec()
 				if not recent_collisions.has(collision_key) or now - recent_collisions[collision_key] > 100:
 					recent_collisions[collision_key] = now
 					var collision_point := (bumping_center + other_center) / 2
 					_spawn_collision_sparks(collision_point, push_dir)
+					# Play collision sound
+					if AudioManager:
+						AudioManager.play_collision()
 
 		# Update physics
 		bumping.physics_update(delta)
@@ -637,6 +663,10 @@ func _update_physics(delta: float) -> void:
 
 
 func _on_piece_placed(pos: Vector2i, piece: Piece) -> void:
+	# Play placement sound
+	if AudioManager:
+		AudioManager.play_place()
+
 	# Remove existing sprite if there is one (for promotion)
 	if pos in piece_sprites:
 		piece_sprites[pos].queue_free()
@@ -662,6 +692,55 @@ func _on_piece_placed(pos: Vector2i, piece: Piece) -> void:
 		tween.set_trans(Tween.TRANS_BOUNCE)
 		tween.tween_property(sprite, "position", _board_to_pixel(pos), 0.3)
 		tween.tween_property(sprite, "modulate:a", 1.0, 0.1).set_ease(Tween.EASE_IN)
+
+
+func _on_triplet_clearing(triplet_positions: Array, victim_pos: Vector2i, direction: Vector2i) -> void:
+	## Animate the triplet pieces moving in a line and bumping out victim
+	# Play special clear sound
+	if AudioManager:
+		AudioManager.play_triplet_clear()
+
+	# Convert direction to screen space (Y is inverted in display)
+	var screen_dir := Vector2(direction.x, -direction.y)
+
+	# Sort triplet by movement order (front to back based on direction)
+	var sorted_positions := triplet_positions.duplicate()
+	if direction.x > 0 or direction.y > 0:
+		sorted_positions.reverse()  # Front pieces first
+
+	# Calculate animation parameters
+	var exit_offset := screen_dir * square_size * 12  # Exit off screen
+	var delay_per_piece := 0.08  # Stagger animation
+
+	# Animate each triplet piece
+	for i in range(sorted_positions.size()):
+		var pos: Vector2i = sorted_positions[i]
+		if pos in piece_sprites:
+			var sprite: PieceSprite = piece_sprites[pos]
+			piece_sprites.erase(pos)
+
+			var start_delay := i * delay_per_piece
+			var target := sprite.position + exit_offset
+
+			# Create tween for smooth exit
+			var tween := create_tween()
+			tween.tween_property(sprite, "position", target, 0.5).set_delay(start_delay).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+			tween.parallel().tween_property(sprite, "modulate:a", 0.0, 0.3).set_delay(start_delay + 0.3)
+			tween.tween_callback(sprite.queue_free)
+
+	# Bump the victim if exists
+	if victim_pos != Vector2i(-1, -1) and victim_pos in piece_sprites:
+		var victim_sprite: PieceSprite = piece_sprites[victim_pos]
+		piece_sprites.erase(victim_pos)
+
+		# Victim gets bumped after triplet passes
+		var bump_delay := sorted_positions.size() * delay_per_piece + 0.2
+		await get_tree().create_timer(bump_delay).timeout
+
+		if is_instance_valid(victim_sprite):
+			victim_sprite.home_position = victim_sprite.position
+			victim_sprite.start_bump(screen_dir, square_size * 8.0)
+			bumping_pieces.append(victim_sprite)
 
 
 func _clear_last_move_highlights() -> void:
@@ -743,26 +822,13 @@ func _update_queue_display() -> void:
 
 
 func _get_piece_texture(piece_type: int, side: int) -> Texture2D:
-	const PIECE_TEXTURES := {
-		Piece.Side.WHITE: {
-			Piece.Type.KING: "res://assets/sprites/pieces/wK.svg",
-			Piece.Type.QUEEN: "res://assets/sprites/pieces/wQ.svg",
-			Piece.Type.ROOK: "res://assets/sprites/pieces/wR.svg",
-			Piece.Type.BISHOP: "res://assets/sprites/pieces/wB.svg",
-			Piece.Type.KNIGHT: "res://assets/sprites/pieces/wN.svg",
-			Piece.Type.PAWN: "res://assets/sprites/pieces/wP.svg",
-		},
-		Piece.Side.BLACK: {
-			Piece.Type.KING: "res://assets/sprites/pieces/bK.svg",
-			Piece.Type.QUEEN: "res://assets/sprites/pieces/bQ.svg",
-			Piece.Type.ROOK: "res://assets/sprites/pieces/bR.svg",
-			Piece.Type.BISHOP: "res://assets/sprites/pieces/bB.svg",
-			Piece.Type.KNIGHT: "res://assets/sprites/pieces/bN.svg",
-			Piece.Type.PAWN: "res://assets/sprites/pieces/bP.svg",
-		}
-	}
-	var path: String = PIECE_TEXTURES[side][piece_type]
-	return load(path)
+	# Use piece set from settings (reuse PieceSprite constants)
+	var piece_set: String = Settings.piece_set
+	if not PieceSprite.PIECE_SETS.has(piece_set):
+		piece_set = "standard"
+	var base_path: String = PieceSprite.PIECE_SETS[piece_set]
+	var filename: String = PieceSprite.PIECE_FILES[side][piece_type]
+	return load(base_path + filename)
 
 
 func _show_placement_highlights() -> void:

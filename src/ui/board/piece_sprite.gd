@@ -2,22 +2,29 @@ class_name PieceSprite
 extends TextureRect
 ## Visual representation of a chess piece
 
-const PIECE_TEXTURES := {
+## Available piece sets and their paths
+const PIECE_SETS := {
+	"standard": "res://assets/sprites/pieces/",
+	"spatial": "res://assets/sprites/pieces_3d/",  # MIT license - 3D-style pieces
+}
+
+## Piece filename mapping
+const PIECE_FILES := {
 	Piece.Side.WHITE: {
-		Piece.Type.KING: "res://assets/sprites/pieces/wK.svg",
-		Piece.Type.QUEEN: "res://assets/sprites/pieces/wQ.svg",
-		Piece.Type.ROOK: "res://assets/sprites/pieces/wR.svg",
-		Piece.Type.BISHOP: "res://assets/sprites/pieces/wB.svg",
-		Piece.Type.KNIGHT: "res://assets/sprites/pieces/wN.svg",
-		Piece.Type.PAWN: "res://assets/sprites/pieces/wP.svg",
+		Piece.Type.KING: "wK.svg",
+		Piece.Type.QUEEN: "wQ.svg",
+		Piece.Type.ROOK: "wR.svg",
+		Piece.Type.BISHOP: "wB.svg",
+		Piece.Type.KNIGHT: "wN.svg",
+		Piece.Type.PAWN: "wP.svg",
 	},
 	Piece.Side.BLACK: {
-		Piece.Type.KING: "res://assets/sprites/pieces/bK.svg",
-		Piece.Type.QUEEN: "res://assets/sprites/pieces/bQ.svg",
-		Piece.Type.ROOK: "res://assets/sprites/pieces/bR.svg",
-		Piece.Type.BISHOP: "res://assets/sprites/pieces/bB.svg",
-		Piece.Type.KNIGHT: "res://assets/sprites/pieces/bN.svg",
-		Piece.Type.PAWN: "res://assets/sprites/pieces/bP.svg",
+		Piece.Type.KING: "bK.svg",
+		Piece.Type.QUEEN: "bQ.svg",
+		Piece.Type.ROOK: "bR.svg",
+		Piece.Type.BISHOP: "bB.svg",
+		Piece.Type.KNIGHT: "bN.svg",
+		Piece.Type.PAWN: "bP.svg",
 	}
 }
 
@@ -41,9 +48,13 @@ func setup(p: Piece, pos: Vector2i, square_size: float) -> void:
 	piece = p
 	board_position = pos
 
-	# Load the appropriate texture
-	var texture_path: String = PIECE_TEXTURES[piece.side][piece.type]
-	texture = load(texture_path)
+	# Load the appropriate texture based on piece set setting
+	var piece_set: String = Settings.piece_set
+	if not PIECE_SETS.has(piece_set):
+		piece_set = "standard"
+	var base_path: String = PIECE_SETS[piece_set]
+	var filename: String = PIECE_FILES[piece.side][piece.type]
+	texture = load(base_path + filename)
 
 	# Size and position
 	custom_minimum_size = Vector2(square_size, square_size)
@@ -124,8 +135,12 @@ func animate_to(new_pos: Vector2i, target_pixel_pos: Vector2, duration: float = 
 
 
 func get_texture_for_piece(p: Piece) -> Texture2D:
-	var path: String = PIECE_TEXTURES[p.side][p.type]
-	return load(path)
+	var piece_set: String = Settings.piece_set
+	if not PIECE_SETS.has(piece_set):
+		piece_set = "standard"
+	var base_path: String = PIECE_SETS[piece_set]
+	var filename: String = PIECE_FILES[p.side][p.type]
+	return load(base_path + filename)
 
 
 ## Physics state for bump animation

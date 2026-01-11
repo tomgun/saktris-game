@@ -1,14 +1,21 @@
 # STATUS.md
 
+<!-- format: status-v0.1.0 -->
+
 ## Next Tasks (Priority)
 
-1. **Piece visuals** - Make pieces look more 3D with shading (skins optional/future)
-2. **Save/Load** - Persist game state, autosave functionality
-3. **Settings menu** - Configure arrival frequency, game modes
+1. **Save/Load** - Persist game state, autosave functionality
+2. **Settings menu** - Configure arrival frequency, game modes, piece set toggle
+3. **Clock UI** - Display timer mode countdown in game
+
+## Backlog
+
+- **Real 3D rendering** - Use actual 3D models with camera/lighting instead of 2D sprites
+- **AI pawn sacrifice fix** - AI sometimes sacrifices 3 pawns needlessly; make this only happen on Easy difficulty
 
 ---
 
-## Current State (2026-01-08)
+## Current State (2026-01-10)
 
 - Game is playable at: https://tomgun.github.io/saktris-game/
 - GitHub repo: https://github.com/tomgun/saktris-game (public)
@@ -26,6 +33,10 @@
   - Proper checkmate/king capture detection
   - Game title and credit on main screen
   - Async AI calculation (no UI freeze, shows progress %)
+  - Sound FX system with theme support (move, capture, place, check, checkmate sounds)
+  - Draw detection (50-move rule, threefold repetition, insufficient material)
+  - Timer mode (chess clock with various time controls)
+  - Multiple piece sets (standard flat, spatial 3D-style)
 
 ## Known Issues
 - None critical
@@ -41,4 +52,8 @@
 - F-0011: Special chess rules (castling, en passant, promotion)
 - F-0012: Physics bump mode (sparks + motion trails)
 - F-0014: Bishop placement rule
+- F-0015: Sound FX & Theme System
+- F-0016: Timer Mode (chess clock)
+- F-0017: Draw Rules (50-move, repetition, insufficient material)
+- F-0018: Multiple Piece Sets (standard, spatial 3D)
 - Web deployment pipeline

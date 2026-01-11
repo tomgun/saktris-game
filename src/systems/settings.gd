@@ -7,6 +7,7 @@ const SETTINGS_PATH := "user://settings.json"
 var arrival_frequency: int = 1
 var arrival_mode: int = PieceArrivalManager.Mode.FIXED
 var row_clear_enabled: bool = false
+var triplet_clear_enabled: bool = true
 var physics_bump_enabled: bool = true
 var piece_preview_count: int = 1  ## How many upcoming pieces to show
 var game_mode: int = 0  ## 0 = TWO_PLAYER, 1 = VS_AI
@@ -17,13 +18,15 @@ var ai_side: int = Piece.Side.BLACK  ## Which side the AI plays
 var master_volume: float = 1.0
 var music_volume: float = 0.8
 var sfx_volume: float = 1.0
+var audio_theme: String = "classic"
 
 ## Visual settings
 var board_theme: String = "classic"
-var piece_set: String = "standard"
+var piece_set: String = "spatial"  ## Options: "standard", "spatial"
 var show_coordinates: bool = true
 var show_legal_moves: bool = true
 var animation_speed: float = 1.0
+var piece_3d_enabled: bool = true  ## Enable 3D-style shading on pieces
 
 signal settings_changed
 
@@ -55,6 +58,7 @@ func load_settings() -> void:
 	arrival_frequency = data.get("arrival_frequency", arrival_frequency)
 	arrival_mode = data.get("arrival_mode", arrival_mode)
 	row_clear_enabled = data.get("row_clear_enabled", row_clear_enabled)
+	triplet_clear_enabled = data.get("triplet_clear_enabled", triplet_clear_enabled)
 	physics_bump_enabled = data.get("physics_bump_enabled", physics_bump_enabled)
 	piece_preview_count = data.get("piece_preview_count", piece_preview_count)
 
@@ -62,6 +66,7 @@ func load_settings() -> void:
 	master_volume = data.get("master_volume", master_volume)
 	music_volume = data.get("music_volume", music_volume)
 	sfx_volume = data.get("sfx_volume", sfx_volume)
+	audio_theme = data.get("audio_theme", audio_theme)
 
 	# Visual settings
 	board_theme = data.get("board_theme", board_theme)
@@ -69,6 +74,7 @@ func load_settings() -> void:
 	show_coordinates = data.get("show_coordinates", show_coordinates)
 	show_legal_moves = data.get("show_legal_moves", show_legal_moves)
 	animation_speed = data.get("animation_speed", animation_speed)
+	piece_3d_enabled = data.get("piece_3d_enabled", piece_3d_enabled)
 
 	_apply_audio_settings()
 
@@ -79,16 +85,19 @@ func save_settings() -> void:
 		"arrival_frequency": arrival_frequency,
 		"arrival_mode": arrival_mode,
 		"row_clear_enabled": row_clear_enabled,
+		"triplet_clear_enabled": triplet_clear_enabled,
 		"physics_bump_enabled": physics_bump_enabled,
 		"piece_preview_count": piece_preview_count,
 		"master_volume": master_volume,
 		"music_volume": music_volume,
 		"sfx_volume": sfx_volume,
+		"audio_theme": audio_theme,
 		"board_theme": board_theme,
 		"piece_set": piece_set,
 		"show_coordinates": show_coordinates,
 		"show_legal_moves": show_legal_moves,
-		"animation_speed": animation_speed
+		"animation_speed": animation_speed,
+		"piece_3d_enabled": piece_3d_enabled
 	}
 
 	var file := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
@@ -122,6 +131,7 @@ func get_game_settings() -> Dictionary:
 		"arrival_frequency": arrival_frequency,
 		"arrival_mode": arrival_mode,
 		"row_clear_enabled": row_clear_enabled,
+		"triplet_clear_enabled": triplet_clear_enabled,
 		"physics_bump_enabled": physics_bump_enabled,
 		"game_mode": game_mode,
 		"ai_difficulty": ai_difficulty,
@@ -134,7 +144,8 @@ func reset_to_defaults() -> void:
 	arrival_frequency = 1
 	arrival_mode = PieceArrivalManager.Mode.FIXED
 	row_clear_enabled = false
-	physics_bump_enabled = false
+	triplet_clear_enabled = true
+	physics_bump_enabled = true
 	piece_preview_count = 1
 	master_volume = 1.0
 	music_volume = 0.8
@@ -144,4 +155,5 @@ func reset_to_defaults() -> void:
 	show_coordinates = true
 	show_legal_moves = true
 	animation_speed = 1.0
+	piece_3d_enabled = false
 	save_settings()
