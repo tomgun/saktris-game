@@ -524,6 +524,136 @@ func _find_consecutive_same_type(center: Vector2i, dir: Vector2i, piece_type: in
 	return positions
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Fast Move/Undo for AI (avoids board copying in minimax)
+# ─────────────────────────────────────────────────────────────────────────────
+
+func make_move(from: Vector2i, to: Vector2i) -> Dictionary:
+	## Makes a move and returns data needed for undo_move()
+	## This is optimized for AI minimax - no signals, no validation
+	## Returns empty dict if move is invalid (no piece at from)
+	var piece := get_piece(from)
+	if piece == null:
+		return {}
+
+	var move_data := {
+		"from": from,
+		"to": to,
+		"moved_piece": piece,
+		"captured_piece": null,
+		"captured_pos": to,
+		"prev_en_passant": en_passant_target,
+		"prev_has_moved": piece.has_moved,
+		"special": "",
+		"rook_from": Vector2i(-1, -1),
+		"rook_to": Vector2i(-1, -1),
+		"rook": null,
+		"rook_prev_has_moved": false,
+		"promoted_from_type": -1  # Store original type if promotion
+	}
+
+	# Store captured piece (may be null)
+	move_data["captured_piece"] = get_piece(to)
+
+	# Clear en passant target (will be set if this is a double pawn move)
+	var prev_ep := en_passant_target
+	en_passant_target = Vector2i(-1, -1)
+
+	# Handle en passant capture
+	if piece.type == Piece.Type.PAWN and to == prev_ep:
+		var direction := 1 if piece.side == Piece.Side.WHITE else -1
+		var captured_pawn_pos := to - Vector2i(0, direction)
+		move_data["captured_piece"] = get_piece(captured_pawn_pos)
+		move_data["captured_pos"] = captured_pawn_pos
+		move_data["special"] = "en_passant"
+		set_piece(captured_pawn_pos, null)
+
+	# Execute the basic move
+	set_piece(from, null)
+	set_piece(to, piece)
+	piece.has_moved = true
+
+	# Set en passant target if pawn moved 2 squares
+	if piece.type == Piece.Type.PAWN and abs(to.y - from.y) == 2:
+		var direction := 1 if piece.side == Piece.Side.WHITE else -1
+		en_passant_target = from + Vector2i(0, direction)
+
+	# Handle castling
+	if piece.type == Piece.Type.KING and abs(to.x - from.x) == 2:
+		var rook_from: Vector2i
+		var rook_to: Vector2i
+		if to.x == 6:  # Kingside
+			rook_from = Vector2i(7, to.y)
+			rook_to = Vector2i(5, to.y)
+			move_data["special"] = "castling_kingside"
+		else:  # Queenside (to.x == 2)
+			rook_from = Vector2i(0, to.y)
+			rook_to = Vector2i(3, to.y)
+			move_data["special"] = "castling_queenside"
+
+		var rook := get_piece(rook_from)
+		if rook:
+			move_data["rook_from"] = rook_from
+			move_data["rook_to"] = rook_to
+			move_data["rook"] = rook
+			move_data["rook_prev_has_moved"] = rook.has_moved
+			set_piece(rook_from, null)
+			set_piece(rook_to, rook)
+			rook.has_moved = true
+
+	# Handle pawn promotion - auto-promote to queen for AI
+	if piece.type == Piece.Type.PAWN:
+		var promotion_row := 7 if piece.side == Piece.Side.WHITE else 0
+		if to.y == promotion_row:
+			move_data["special"] = "promotion"
+			move_data["promoted_from_type"] = Piece.Type.PAWN
+			piece.type = Piece.Type.QUEEN
+
+	return move_data
+
+
+func undo_move(move_data: Dictionary) -> void:
+	## Undoes a move made by make_move()
+	if move_data.is_empty():
+		return
+
+	var from: Vector2i = move_data["from"]
+	var to: Vector2i = move_data["to"]
+	var piece: Piece = move_data["moved_piece"]
+
+	# Handle promotion - restore original piece type
+	if move_data["promoted_from_type"] >= 0:
+		piece.type = move_data["promoted_from_type"]
+
+	# Restore piece to original position
+	set_piece(from, piece)
+	piece.has_moved = move_data["prev_has_moved"]
+
+	# Restore captured piece (or clear destination)
+	var captured_pos: Vector2i = move_data["captured_pos"]
+	var captured_piece = move_data["captured_piece"]
+
+	if captured_pos == to:
+		# Normal capture or no capture
+		set_piece(to, captured_piece)
+	else:
+		# En passant - captured piece was not on destination square
+		set_piece(to, null)
+		set_piece(captured_pos, captured_piece)
+
+	# Restore castling rook
+	if move_data["rook"] != null:
+		var rook: Piece = move_data["rook"]
+		var rook_from: Vector2i = move_data["rook_from"]
+		var rook_to: Vector2i = move_data["rook_to"]
+		set_piece(rook_to, null)
+		set_piece(rook_from, rook)
+		rook.has_moved = move_data["rook_prev_has_moved"]
+
+	# Restore en passant target
+	en_passant_target = move_data["prev_en_passant"]
+
+
 func to_dict() -> Dictionary:
 	## Serialize board state for save/load
 	var data := {

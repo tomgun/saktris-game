@@ -194,54 +194,58 @@ func _get_best_regular_move(game_state: GameState) -> Dictionary:
 func _minimax(board: Board, from: Vector2i, to: Vector2i,
 			  depth: int, alpha: float, beta: float, is_maximizing: bool) -> float:
 	## Minimax with alpha-beta pruning
+	## Uses make_move/undo_move pattern for efficiency (no board copying)
 
-	# Make the move on a copy
-	var board_copy := _copy_board(board)
-	var result := board_copy.execute_move(from, to)
+	# Make the move on the board (will be undone before returning)
+	var move_data := board.make_move(from, to)
 
-	if not result["valid"]:
+	if move_data.is_empty():
 		return -INF if is_maximizing else INF
-
-	# Handle promotion - always promote to queen for simplicity
-	if result["needs_promotion"]:
-		board_copy.promote_pawn(to, Piece.Type.QUEEN)
 
 	# Terminal conditions
 	var current_side := side if is_maximizing else _opponent(side)
 	var opponent_side := _opponent(current_side)
 
-	if board_copy.is_in_check(opponent_side):
-		if _has_no_legal_moves(board_copy, opponent_side):
+	var result: float
+	if board.is_in_check(opponent_side):
+		if _has_no_legal_moves(board, opponent_side):
 			# Checkmate!
-			return INF if is_maximizing else -INF
-	elif _has_no_legal_moves(board_copy, opponent_side):
+			result = INF if is_maximizing else -INF
+			board.undo_move(move_data)
+			return result
+	elif _has_no_legal_moves(board, opponent_side):
 		# Stalemate
+		board.undo_move(move_data)
 		return 0.0
 
 	if depth == 0:
-		return _evaluate_board(board_copy)
+		result = _evaluate_board(board)
+		board.undo_move(move_data)
+		return result
 
 	if is_maximizing:
 		var max_eval := -INF
-		var moves := _get_all_moves(board_copy, side)
+		var moves := _get_all_moves(board, side)
 		for move in moves:
-			var eval := _minimax(board_copy, move["from"], move["to"],
+			var eval := _minimax(board, move["from"], move["to"],
 								 depth - 1, alpha, beta, false)
 			max_eval = max(max_eval, eval)
 			alpha = max(alpha, eval)
 			if beta <= alpha:
 				break  # Beta cutoff
+		board.undo_move(move_data)
 		return max_eval
 	else:
 		var min_eval := INF
-		var moves := _get_all_moves(board_copy, _opponent(side))
+		var moves := _get_all_moves(board, _opponent(side))
 		for move in moves:
-			var eval := _minimax(board_copy, move["from"], move["to"],
+			var eval := _minimax(board, move["from"], move["to"],
 								 depth - 1, alpha, beta, true)
 			min_eval = min(min_eval, eval)
 			beta = min(beta, eval)
 			if beta <= alpha:
 				break  # Alpha cutoff
+		board.undo_move(move_data)
 		return min_eval
 
 
