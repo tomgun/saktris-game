@@ -15,7 +15,7 @@
 
 ---
 
-## Current State (2026-01-10)
+## Current State (2026-01-11)
 
 - Game is playable at: https://tomgun.github.io/saktris-game/
 - GitHub repo: https://github.com/tomgun/saktris-game (public)
@@ -32,7 +32,7 @@
   - Both Black and White arrival areas visible
   - Proper checkmate/king capture detection
   - Game title and credit on main screen
-  - Async AI calculation (no UI freeze, shows progress %)
+  - Threaded AI calculation (background thread keeps UI/animations smooth)
   - Sound FX system with theme support (move, capture, place, check, checkmate sounds)
   - Draw detection (50-move rule, threefold repetition, insufficient material)
   - Timer mode (chess clock with various time controls)

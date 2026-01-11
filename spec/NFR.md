@@ -69,5 +69,5 @@ Purpose: capture cross-cutting constraints that apply across many features.
 - Where enforced:
   - Tests: unit tests with timing assertions
   - CI: GUT test suite
-- Current status: not met
-- Notes: Current implementation uses inefficient board copying. Optimization needed: replace serialize/deserialize with move/undo pattern.
+- Current status: met
+- Notes: Optimized with make_move/undo_move pattern (no board copying) + background thread to keep UI responsive during calculation.

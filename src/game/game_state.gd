@@ -27,6 +27,8 @@ var time_control_preset: String = ""
 ## AI opponent
 var ai = null  # ChessAI instance
 var ai_side: int = Piece.Side.BLACK
+var _ai_thread: Thread = null
+var _ai_result: Dictionary = {}
 
 ## Move history for undo/navigation
 var move_history: Array[Dictionary] = []
@@ -313,7 +315,7 @@ func is_ai_turn() -> bool:
 func request_ai_move() -> void:
 	## Request the AI to make a move (call this after ai_turn_started)
 	## AI will EITHER place a piece OR make a move (not both!)
-	## Uses async calculation to keep UI responsive
+	## Uses background thread to keep UI completely responsive
 	if not is_ai_turn():
 		print("[DEBUG] request_ai_move: not AI's turn!")
 		return
@@ -325,12 +327,26 @@ func request_ai_move() -> void:
 	_ai_calculating = true
 	ai_thinking_started.emit()
 
-	# Connect progress signal if not already connected
-	if not ai.progress_updated.is_connected(_on_ai_progress):
-		ai.progress_updated.connect(_on_ai_progress)
+	# Create a snapshot of the game state for the thread
+	var board_data := board.to_dict()
+	var arrival_data := arrival_manager.to_dict()
+	var ai_side_copy := ai_side
+	var current_player_copy := current_player
 
-	# Use async version to keep UI responsive
-	var move: Dictionary = await ai.get_best_move_async(self)
+	# Start AI calculation in background thread
+	var ai_difficulty_copy: int = ai.difficulty
+	var ai_max_depth_copy: int = ai.max_depth
+	_ai_thread = Thread.new()
+	_ai_thread.start(_calculate_ai_move_threaded.bind(board_data, arrival_data, ai_side_copy, ai_difficulty_copy, ai_max_depth_copy))
+
+	# Poll for completion without blocking
+	while _ai_thread.is_alive():
+		await Engine.get_main_loop().process_frame
+
+	# Get result and clean up thread
+	_ai_thread.wait_to_finish()
+	_ai_thread = null
+	var move: Dictionary = _ai_result
 
 	_ai_calculating = false
 	ai_thinking_finished.emit()
@@ -352,6 +368,104 @@ func request_ai_move() -> void:
 			print("[DEBUG] AI: No valid move found!")
 	else:
 		print("[DEBUG] AI: Unexpected move format: %s" % move)
+
+
+func _calculate_ai_move_threaded(board_data: Dictionary, arrival_data: Dictionary, ai_side_val: int, ai_difficulty_val: int, ai_max_depth_val: int) -> void:
+	## Runs in background thread - calculates AI move using copied data
+	# Reconstruct board and arrival manager from snapshots
+	var thread_board := Board.from_dict(board_data)
+	var thread_arrival := PieceArrivalManager.from_dict(arrival_data)
+
+	# Create AI for this thread with copied settings
+	var thread_ai := ChessAIClass.new(ai_side_val, ai_difficulty_val)
+	thread_ai.max_depth = ai_max_depth_val
+
+	# Check for piece placement first
+	var arriving := thread_arrival.get_current_piece(ai_side_val)
+	if arriving != null:
+		_ai_result = _calculate_placement_threaded(thread_board, thread_arrival, thread_ai, ai_side_val)
+	else:
+		_ai_result = _calculate_move_threaded(thread_board, thread_ai)
+
+
+func _calculate_placement_threaded(thread_board: Board, thread_arrival: PieceArrivalManager, thread_ai: ChessAI, ai_side_val: int) -> Dictionary:
+	## Calculate best placement column (runs in thread)
+	var best_column := -1
+	var best_score := -INF
+	var back_row := 0 if ai_side_val == Piece.Side.WHITE else 7
+	var arriving := thread_arrival.get_current_piece(ai_side_val)
+
+	for col in range(8):
+		var pos := Vector2i(col, back_row)
+		# Use can_place_piece_at for proper bishop rule check
+		if not thread_board.can_place_piece_at(pos, arriving):
+			continue
+
+		# Simple placement evaluation
+		var score := _evaluate_placement_pos(thread_board, pos, arriving, ai_side_val)
+		if score > best_score:
+			best_score = score
+			best_column = col
+
+	return {"column": best_column}
+
+
+func _evaluate_placement_pos(thread_board: Board, pos: Vector2i, piece: Piece, ai_side_val: int) -> float:
+	## Simple placement evaluation for threaded calculation
+	var score := 0.0
+	var center_dist: float = abs(pos.x - 3.5)
+
+	# Prefer center for most pieces
+	score -= center_dist * 10
+
+	# Piece-specific bonuses
+	match piece.type:
+		Piece.Type.ROOK:
+			if pos.x == 0 or pos.x == 7:
+				score += 20  # Corners for rooks
+		Piece.Type.KING:
+			if pos.x >= 2 and pos.x <= 5:
+				score += 30  # Protected area for king
+
+	# Penalty if square is attacked
+	var opponent := Piece.Side.BLACK if ai_side_val == Piece.Side.WHITE else Piece.Side.WHITE
+	if thread_board.is_square_attacked(pos, ai_side_val):
+		score -= piece.type * 50  # Use type as rough value proxy
+
+	return score
+
+
+func _calculate_move_threaded(thread_board: Board, thread_ai: ChessAI) -> Dictionary:
+	## Calculate best move using minimax (runs in thread)
+	var all_moves := []
+	for row in range(8):
+		for col in range(8):
+			var pos := Vector2i(col, row)
+			var piece := thread_board.get_piece(pos)
+			if piece and piece.side == thread_ai.side:
+				var piece_moves := thread_board.get_legal_moves(pos)
+				for target in piece_moves:
+					all_moves.append({"from": pos, "to": target})
+
+	if all_moves.is_empty():
+		return {"from": Vector2i(-1, -1), "to": Vector2i(-1, -1)}
+
+	all_moves.shuffle()
+
+	var best_move: Dictionary = all_moves[0]
+	var best_score := -INF
+	var alpha := -INF
+	var beta := INF
+
+	for move in all_moves:
+		var score := thread_ai._minimax(thread_board, move["from"], move["to"],
+									   thread_ai.max_depth - 1, alpha, beta, false)
+		if score > best_score:
+			best_score = score
+			best_move = move
+		alpha = max(alpha, score)
+
+	return best_move
 
 
 func _on_ai_progress(percent: float) -> void:
