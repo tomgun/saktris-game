@@ -321,7 +321,7 @@ func is_ai_turn() -> bool:
 func request_ai_move() -> void:
 	## Request the AI to make a move (call this after ai_turn_started)
 	## AI will EITHER place a piece OR make a move (not both!)
-	## Uses background thread to keep UI completely responsive
+	## Uses background thread on native platforms, async on web
 	if not is_ai_turn():
 		print("[DEBUG] request_ai_move: not AI's turn!")
 		return
@@ -333,26 +333,32 @@ func request_ai_move() -> void:
 	_ai_calculating = true
 	ai_thinking_started.emit()
 
-	# Create a snapshot of the game state for the thread
-	var board_data := board.to_dict()
-	var arrival_data := arrival_manager.to_dict()
-	var ai_side_copy := ai_side
-	var current_player_copy := current_player
+	var move: Dictionary
 
-	# Start AI calculation in background thread
-	var ai_difficulty_copy: int = ai.difficulty
-	var ai_max_depth_copy: int = ai.max_depth
-	_ai_thread = Thread.new()
-	_ai_thread.start(_calculate_ai_move_threaded.bind(board_data, arrival_data, ai_side_copy, ai_difficulty_copy, ai_max_depth_copy))
+	# Web builds don't support threads reliably - use async approach
+	if OS.has_feature("web"):
+		move = await ai.get_best_move_async(self)
+	else:
+		# Native: use background thread to keep UI completely responsive
+		# Create a snapshot of the game state for the thread
+		var board_data := board.to_dict()
+		var arrival_data := arrival_manager.to_dict()
+		var ai_side_copy := ai_side
 
-	# Poll for completion without blocking
-	while _ai_thread.is_alive():
-		await Engine.get_main_loop().process_frame
+		# Start AI calculation in background thread
+		var ai_difficulty_copy: int = ai.difficulty
+		var ai_max_depth_copy: int = ai.max_depth
+		_ai_thread = Thread.new()
+		_ai_thread.start(_calculate_ai_move_threaded.bind(board_data, arrival_data, ai_side_copy, ai_difficulty_copy, ai_max_depth_copy))
 
-	# Get result and clean up thread
-	_ai_thread.wait_to_finish()
-	_ai_thread = null
-	var move: Dictionary = _ai_result
+		# Poll for completion without blocking
+		while _ai_thread.is_alive():
+			await Engine.get_main_loop().process_frame
+
+		# Get result and clean up thread
+		_ai_thread.wait_to_finish()
+		_ai_thread = null
+		move = _ai_result
 
 	_ai_calculating = false
 	ai_thinking_finished.emit()

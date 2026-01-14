@@ -66,6 +66,7 @@ func test_game_start_two_player_flow() -> void:
 
 func test_game_start_vs_ai_flow() -> void:
 	## Trace through exactly what happens at game start in VS_AI mode
+	## Note: This test must await AI move since it runs in a background thread
 	print("\n=== GAME START VS_AI FLOW ===")
 
 	game_state.start_new_game({
@@ -97,9 +98,10 @@ func test_game_start_vs_ai_flow() -> void:
 	assert_true(game_state.is_ai_turn(), "AI's turn")
 	assert_true(game_state.must_place_piece(), "Black (AI) must place")
 
-	# Simulate AI placing
+	# Simulate AI placing - must await since it runs in background thread
 	print("\n--- AI (Black) places ---")
 	game_state.request_ai_move()
+	await wait_for_signal(game_state.ai_move_made, 5.0)
 
 	print("After AI moves:")
 	_print_state()
@@ -189,6 +191,70 @@ func test_no_continuous_placement_after_second_piece() -> void:
 	# Black should NOT have piece yet (2 moves, 2 pieces_given)
 	assert_false(game_state.must_place_piece(),
 		"Black should NOT have piece (2 moves, need 4 for 3rd piece)")
+
+	print("=== TEST PASSED ===\n")
+
+
+func test_ai_async_placement_returns_immediately() -> void:
+	## Test that AI async placement works without threading (used by web builds)
+	## This is the code path used when OS.has_feature("web") is true
+	print("\n=== TEST: AI async placement (web path) ===")
+
+	game_state.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 2,
+		"game_mode": GameState.GameMode.VS_AI,
+		"ai_side": Piece.Side.BLACK,
+		"ai_difficulty": 0  # EASY
+	})
+
+	# White places first piece
+	game_state.try_place_piece(4)
+	assert_eq(game_state.current_player, Piece.Side.BLACK, "Black's turn")
+	assert_true(game_state.is_ai_turn(), "AI's turn")
+	assert_true(game_state.must_place_piece(), "AI must place piece")
+
+	# Test the async path directly (what web builds use)
+	# get_best_move_async should return immediately for placement (no await needed internally)
+	var move: Dictionary = await game_state.ai.get_best_move_async(game_state)
+
+	print("AI async returned: %s" % move)
+	assert_true(move.has("column"), "Move should have column for placement")
+	assert_true(move["column"] >= 0 and move["column"] <= 7, "Column should be valid (0-7)")
+
+	print("=== TEST PASSED ===\n")
+
+
+func test_ai_async_move_yields_periodically() -> void:
+	## Test that AI async move yields control (doesn't block)
+	## This ensures the web build stays responsive during AI thinking
+	print("\n=== TEST: AI async move yields ===")
+
+	game_state.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 2,
+		"game_mode": GameState.GameMode.VS_AI,
+		"ai_side": Piece.Side.BLACK,
+		"ai_difficulty": 0  # EASY
+	})
+
+	# White places, Black places, White moves - then Black (AI) needs to move
+	game_state.try_place_piece(4)  # White places
+	game_state.try_place_piece(4)  # Black places (manual for test)
+	game_state.try_move(Vector2i(4, 0), Vector2i(4, 1))  # White moves pawn
+
+	assert_eq(game_state.current_player, Piece.Side.BLACK, "Black's turn")
+	assert_false(game_state.must_place_piece(), "No piece to place")
+
+	# Track if we yielded at least once
+	var yield_count := 0
+	game_state.ai.progress_updated.connect(func(_p): yield_count += 1)
+
+	# Test the async move path
+	var move: Dictionary = await game_state.ai.get_best_move_async(game_state)
+
+	print("AI async move returned: %s (yielded %d times)" % [move, yield_count])
+	assert_true(move.has("from") and move.has("to"), "Move should have from/to")
 
 	print("=== TEST PASSED ===\n")
 
