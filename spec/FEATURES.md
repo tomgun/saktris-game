@@ -478,3 +478,26 @@
   - Integration: n/a
   - Acceptance: todo
 - Description: Responsive mobile layout with touch input support. Screen width < 800px triggers vertical layout. Includes tap-to-move, drag-to-move, and long-press for arrow drawing.
+
+## F-0020: GameRulesScreen
+- Tags: [ui, help]
+- Layer: presentation
+- Domain: ui
+- Priority: medium
+- Parent: none
+- Dependencies: none
+- Complexity: S
+- Status: planned
+- Acceptance: spec/acceptance/F-0020.md
+- Verification:
+  - Accepted: no
+  - Accepted at:
+- Implementation:
+  - State: none
+  - Code:
+- Tests:
+  - Strategy: manual
+  - Unit: n/a
+  - Integration: n/a
+  - Acceptance: todo
+- Description: In-game rules screen accessible from main menu. Shows Saktris rules including piece arrival system, placement rules, and victory conditions.

@@ -11,6 +11,7 @@
 1. **Save/Load** - Persist game state, autosave functionality
 2. **Settings menu** - Configure arrival frequency, game modes, piece set toggle
 3. **Clock UI** - Display timer mode countdown in game
+4. **Game rules screen** - Viewable from main menu link
 
 ## Backlog
 
@@ -44,7 +45,7 @@
   - Mobile responsive layout with touch input support
 
 ## Known Issues
-- None critical
+- See `spec/ISSUES.md` (2 open: I-0001 board size, I-0002 landscape rotation)
 
 ## Completed Features
 - F-0001: Godot project structure

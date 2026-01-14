@@ -86,8 +86,8 @@ func _ready() -> void:
 	mobile_new_game_button.pressed.connect(_on_new_game_pressed)
 	_create_board()
 
-	# Setup mobile detection
-	get_viewport().size_changed.connect(_check_mobile_mode)
+	# Setup mobile detection and resize handling
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_check_mobile_mode()
 
 	# Setup long press timer for touch arrow drawing
@@ -979,8 +979,17 @@ func _on_resized() -> void:
 	var available := mini(board_container.size.x, board_container.size.y)
 	var new_square_size: float = available / BOARD_SIZE
 
-	# Only update if size actually changed significantly
-	if absf(new_square_size - square_size) < 0.1:
+	# Calculate new board position
+	var grid_size: float = new_square_size * BOARD_SIZE
+	var offset_x: float = maxf(0, (board_container.size.x - grid_size) / 2)
+	var offset_y: float = maxf(0, (board_container.size.y - grid_size) / 2)
+	var new_board_pos := Vector2(offset_x, offset_y)
+
+	# Check if anything actually changed (size OR position)
+	var size_changed := absf(new_square_size - square_size) >= 0.1
+	var pos_changed := squares_grid.position.distance_to(new_board_pos) >= 0.1
+
+	if not size_changed and not pos_changed:
 		return
 
 	square_size = new_square_size
@@ -990,31 +999,32 @@ func _on_resized() -> void:
 		for square in row:
 			square.custom_minimum_size = Vector2(square_size, square_size)
 
-	# Center the grid within the container
-	var grid_size: float = square_size * BOARD_SIZE
-	var offset_x: float = maxf(0, (board_container.size.x - grid_size) / 2)
-	var offset_y: float = maxf(0, (board_container.size.y - grid_size) / 2)
-	var board_pos := Vector2(offset_x, offset_y)
-
-	squares_grid.position = board_pos
-
-	# Also offset the other layers to match
-	pieces_layer.position = board_pos
-	highlights_layer.position = board_pos
-	arrows_layer.position = board_pos
-	arrival_layer.position = board_pos
+	# Position all layers
+	squares_grid.position = new_board_pos
+	pieces_layer.position = new_board_pos
+	highlights_layer.position = new_board_pos
+	arrows_layer.position = new_board_pos
+	arrival_layer.position = new_board_pos
 
 	# Resize and position the background to match the board
 	if board_background:
-		board_background.position = board_pos
+		board_background.position = new_board_pos
 		board_background.size = Vector2(grid_size, grid_size)
 
-	# Reposition pieces
+	# Always reposition pieces when layout changes
 	for pos in piece_sprites:
 		var sprite = piece_sprites[pos]
 		sprite.size = Vector2(square_size, square_size)
 		sprite.custom_minimum_size = Vector2(square_size, square_size)
 		sprite.position = _board_to_pixel(pos)
+
+
+func _on_viewport_size_changed() -> void:
+	## Handle viewport size changes (including orientation changes)
+	_check_mobile_mode()
+	# Always trigger resize on viewport change to handle orientation changes
+	# even when mobile mode doesn't change (e.g., portrait to landscape on phone)
+	call_deferred("_deferred_resize_update")
 
 
 func _check_mobile_mode() -> void:
@@ -1034,14 +1044,20 @@ func _update_layout() -> void:
 
 	if is_mobile:
 		# Mobile layout: minimal margins, hide side panel, show mobile UI overlay
-		margin_container.add_theme_constant_override("margin_left", 8)
-		margin_container.add_theme_constant_override("margin_top", 8)
-		margin_container.add_theme_constant_override("margin_right", 8)
-		margin_container.add_theme_constant_override("margin_bottom", 8)
+		margin_container.add_theme_constant_override("margin_left", 4)
+		margin_container.add_theme_constant_override("margin_top", 4)
+		margin_container.add_theme_constant_override("margin_right", 4)
+		margin_container.add_theme_constant_override("margin_bottom", 4)
 
 		# Hide side panel - board will expand to fill space
 		if side_panel:
 			side_panel.visible = false
+
+		# Hide arrival areas on mobile (mobile UI has its own queue display)
+		if black_arrival_area:
+			black_arrival_area.visible = false
+		if white_arrival_area:
+			white_arrival_area.visible = false
 
 		# Show mobile UI overlay (positioned absolutely, doesn't need margin space)
 		if mobile_ui:
@@ -1059,13 +1075,26 @@ func _update_layout() -> void:
 		if side_panel:
 			side_panel.visible = true
 
+		# Show arrival areas on desktop
+		if black_arrival_area:
+			black_arrival_area.visible = true
+		if white_arrival_area:
+			white_arrival_area.visible = true
+
 		if mobile_ui:
 			mobile_ui.visible = false
 
 	# Force layout recalculation after layout settles
+	# Use multiple deferred calls to ensure layout has fully updated
 	call_deferred("_on_resized")
-	# Also queue a second update to catch any delayed layout changes
-	get_tree().create_timer(0.1).timeout.connect(_on_resized)
+	call_deferred("_deferred_resize_update")
+
+
+func _deferred_resize_update() -> void:
+	## Called after layout changes to ensure pieces are correctly positioned
+	## This runs after the first deferred _on_resized, giving layout time to settle
+	await get_tree().process_frame
+	_on_resized()
 
 
 func _update_mobile_display() -> void:
