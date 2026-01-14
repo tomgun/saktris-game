@@ -1041,11 +1041,12 @@ func _check_mobile_mode(force_update: bool = false) -> void:
 	var viewport_size: Vector2i = get_viewport().size
 	var new_is_mobile: bool = viewport_size.x < MOBILE_BREAKPOINT
 
-	print("[MOBILE] viewport=%s, is_mobile=%s (breakpoint=%d)" % [viewport_size, new_is_mobile, MOBILE_BREAKPOINT])
+	# DEBUG: Show viewport info on screen (temporary)
+	if status_label:
+		status_label.text = "DEBUG: %dx%d mobile=%s" % [viewport_size.x, viewport_size.y, new_is_mobile]
 
 	if force_update or new_is_mobile != is_mobile:
 		is_mobile = new_is_mobile
-		print("[MOBILE] Updating layout, is_mobile=%s" % is_mobile)
 		_update_layout()
 
 
