@@ -88,7 +88,8 @@ func _ready() -> void:
 
 	# Setup mobile detection and resize handling
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
-	_check_mobile_mode()
+	# Defer initial mobile check - viewport size may not be correct immediately on web
+	call_deferred("_initial_layout_setup")
 
 	# Setup long press timer for touch arrow drawing
 	long_press_timer = Timer.new()
@@ -1019,20 +1020,28 @@ func _on_resized() -> void:
 		sprite.position = _board_to_pixel(pos)
 
 
+func _initial_layout_setup() -> void:
+	## Called after _ready to set up initial layout (deferred for correct viewport size)
+	# Wait one more frame for viewport to fully initialize (important for web/iOS)
+	await get_tree().process_frame
+	_check_mobile_mode(true)  # Force update on initial setup
+	_on_resized()
+
+
 func _on_viewport_size_changed() -> void:
 	## Handle viewport size changes (including orientation changes)
-	_check_mobile_mode()
+	_check_mobile_mode(false)
 	# Always trigger resize on viewport change to handle orientation changes
 	# even when mobile mode doesn't change (e.g., portrait to landscape on phone)
 	call_deferred("_deferred_resize_update")
 
 
-func _check_mobile_mode() -> void:
+func _check_mobile_mode(force_update: bool = false) -> void:
 	## Check viewport size and switch layout mode if needed
 	var viewport_width: int = get_viewport().size.x
 	var new_is_mobile: bool = viewport_width < MOBILE_BREAKPOINT
 
-	if new_is_mobile != is_mobile:
+	if force_update or new_is_mobile != is_mobile:
 		is_mobile = new_is_mobile
 		_update_layout()
 
