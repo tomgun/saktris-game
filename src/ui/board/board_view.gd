@@ -1039,7 +1039,14 @@ func _on_viewport_size_changed() -> void:
 func _check_mobile_mode(force_update: bool = false) -> void:
 	## Check viewport size and switch layout mode if needed
 	var viewport_size: Vector2i = get_viewport().size
-	var new_is_mobile: bool = viewport_size.x < MOBILE_BREAKPOINT
+
+	# Detect mobile by:
+	# 1. Portrait orientation (height > width) - likely phone
+	# 2. Or small viewport width accounting for device pixel ratio (physical pixels)
+	# iPhone 14 Pro reports ~2200px physical in portrait (734 CSS * 3x scale)
+	var is_portrait: bool = viewport_size.y > viewport_size.x
+	var is_small_screen: bool = viewport_size.x < MOBILE_BREAKPOINT * 3  # Account for up to 3x DPI
+	var new_is_mobile: bool = is_portrait or (is_small_screen and viewport_size.x < 2400)
 
 	# DEBUG: Show viewport info on screen (temporary)
 	if status_label:
