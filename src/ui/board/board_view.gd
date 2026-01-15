@@ -1048,10 +1048,6 @@ func _check_mobile_mode(force_update: bool = false) -> void:
 	var is_small_screen: bool = viewport_size.x < MOBILE_BREAKPOINT * 3  # Account for up to 3x DPI
 	var new_is_mobile: bool = is_portrait or (is_small_screen and viewport_size.x < 2400)
 
-	# DEBUG: Show viewport info on screen (temporary)
-	if status_label:
-		status_label.text = "DEBUG: %dx%d mobile=%s" % [viewport_size.x, viewport_size.y, new_is_mobile]
-
 	if force_update or new_is_mobile != is_mobile:
 		is_mobile = new_is_mobile
 		_update_layout()
