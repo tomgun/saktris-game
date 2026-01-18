@@ -501,3 +501,26 @@
   - Integration: n/a
   - Acceptance: todo
 - Description: In-game rules screen accessible from main menu. Shows Saktris rules including piece arrival system, placement rules, and victory conditions.
+
+## F-0021: OnlineMultiplayer
+- Tags: [multiplayer, networking]
+- Layer: infrastructure
+- Domain: gameplay
+- Priority: medium
+- Parent: none
+- Dependencies: F-0005
+- Complexity: L
+- Status: planned
+- Acceptance: spec/acceptance/F-0021.md
+- Verification:
+  - Accepted: no
+  - Accepted at:
+- Implementation:
+  - State: none
+  - Code:
+- Tests:
+  - Strategy: integration
+  - Unit: n/a
+  - Integration: todo
+  - Acceptance: todo
+- Description: Browser-to-browser online multiplayer using WebRTC or WebSocket. Players can create/join game rooms and play against each other in real-time. Includes game state synchronization, move validation, and disconnect handling.

@@ -8,6 +8,7 @@ const PieceSpriteScene := preload("res://src/ui/board/piece_sprite.tscn")
 const BOARD_SIZE := 8
 const LEGAL_MOVE_DOT_COLOR := Color(0, 0, 0, 0.2)
 const LEGAL_CAPTURE_COLOR := Color(0.8, 0.2, 0.2, 0.3)
+const PLACEMENT_INDICATOR_COLOR := Color(0.3, 0.5, 0.9, 0.9)  # Blue arrow indicators
 
 var game_state: GameState
 var square_size: float = 64.0
@@ -63,12 +64,19 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 @onready var promotion_dialog: PanelContainer = %PromotionDialog
 @onready var promotion_buttons: HBoxContainer = %PromotionButtons
 @onready var new_game_button: Button = %NewGameButton
+@onready var about_button: Button = %AboutButton
+@onready var history_panel: VBoxContainer = %HistoryPanel
+@onready var history_text: TextEdit = %HistoryText
+@onready var copy_button: Button = %CopyButton
+@onready var about_dialog: PanelContainer = %AboutDialog
+@onready var about_description: RichTextLabel = %Description
+@onready var about_close_button: Button = %CloseButton
 @onready var margin_container: MarginContainer = $MarginContainer
 @onready var main_hbox: HBoxContainer = $MarginContainer/HBoxContainer
 @onready var side_panel: VBoxContainer = $MarginContainer/HBoxContainer/SidePanel
 @onready var status_panel: VBoxContainer = %StatusPanel
 
-# Mobile UI elements
+# Mobile UI elements (using unique names which work regardless of hierarchy)
 @onready var mobile_ui: VBoxContainer = %MobileUI
 @onready var mobile_top_bar: PanelContainer = %MobileTopBar
 @onready var mobile_turn_indicator: ColorRect = %MobileTurnIndicator
@@ -77,6 +85,7 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 @onready var mobile_bottom_bar: VBoxContainer = %MobileBottomBar
 @onready var mobile_queue_container: HBoxContainer = %MobileQueueContainer
 @onready var mobile_new_game_button: Button = %MobileNewGameButton
+@onready var mobile_about_button: Button = %MobileAboutButton
 
 signal new_game_requested
 
@@ -84,6 +93,11 @@ signal new_game_requested
 func _ready() -> void:
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	mobile_new_game_button.pressed.connect(_on_new_game_pressed)
+	copy_button.pressed.connect(_on_copy_button_pressed)
+	about_button.pressed.connect(_on_about_button_pressed)
+	about_close_button.pressed.connect(_on_about_close_pressed)
+	about_description.meta_clicked.connect(_on_link_clicked)
+	mobile_about_button.pressed.connect(_on_about_button_pressed)
 	_create_board()
 
 	# Setup mobile detection and resize handling
@@ -165,6 +179,7 @@ func initialize(state: GameState) -> void:
 	game_state.board.piece_moved.connect(_on_piece_moved)
 	game_state.board.piece_captured.connect(_on_piece_captured)
 	game_state.board.piece_placed.connect(_on_piece_placed)
+	game_state.move_executed.connect(_on_move_executed)
 
 	# Wait for layout to complete before positioning
 	await get_tree().process_frame
@@ -174,6 +189,7 @@ func initialize(state: GameState) -> void:
 	_refresh_pieces()
 	_update_turn_display()
 	_update_arrival_display()
+	_clear_history_display()
 
 	# Play game start sound
 	if AudioManager:
@@ -203,6 +219,42 @@ func _create_board() -> void:
 			square.clicked.connect(_on_square_clicked)
 			row_array.append(square)
 		squares.append(row_array)
+
+
+func _verify_piece_sync() -> void:
+	## Check if visual sprites match actual board state, refresh if not
+	if game_state == null:
+		return
+
+	var needs_refresh := false
+
+	# Check each board position
+	for row in range(BOARD_SIZE):
+		for col in range(BOARD_SIZE):
+			var pos := Vector2i(col, row)
+			var board_piece := game_state.board.get_piece(pos)
+			var has_sprite := pos in piece_sprites
+
+			if board_piece != null and not has_sprite:
+				push_warning("Missing sprite at %s" % pos)
+				needs_refresh = true
+				break
+			elif board_piece == null and has_sprite:
+				push_warning("Extra sprite at %s" % pos)
+				needs_refresh = true
+				break
+			elif board_piece != null and has_sprite:
+				var sprite: PieceSprite = piece_sprites[pos]
+				if sprite.piece != board_piece:
+					push_warning("Sprite mismatch at %s" % pos)
+					needs_refresh = true
+					break
+		if needs_refresh:
+			break
+
+	if needs_refresh:
+		push_warning("Board out of sync, refreshing pieces")
+		_refresh_pieces()
 
 
 func _refresh_pieces() -> void:
@@ -471,6 +523,8 @@ func _on_status_changed(new_status: GameState.Status) -> void:
 func _on_game_over(winner: int, reason: String) -> void:
 	var winner_name := "White" if winner == Piece.Side.WHITE else "Black"
 	status_label.text = "%s wins by %s!" % [winner_name, reason]
+	# Ensure final board state is visually correct
+	call_deferred("_verify_piece_sync")
 
 
 func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
@@ -493,6 +547,10 @@ func _on_piece_moved(from: Vector2i, to: Vector2i, piece: Piece) -> void:
 		sprite.animate_to(to, to_pixel)
 		piece_sprites.erase(from)
 		piece_sprites[to] = sprite
+	else:
+		# Sprite not found at expected position - this is a bug, resync
+		push_warning("Piece sprite not found at %s, resyncing board" % from)
+		call_deferred("_refresh_pieces")
 
 	# Update last move highlights
 	_clear_last_move_highlights()
@@ -654,8 +712,10 @@ func _update_physics(delta: float) -> void:
 
 			if distance < bumping_radius + other_radius:
 				# Collision! Push the board piece and spawn sparks
+				# Weight affects how much the target piece moves
 				var push_dir := (other_center - bumping_center).normalized()
-				board_sprite.nudge(push_dir, 0.4)
+				var attacker_weight := bumping.get_weight()
+				board_sprite.nudge(push_dir, 0.4, attacker_weight)
 
 				# Only spawn sparks/sound if we haven't recently for this pair
 				var collision_key := _get_collision_key(bumping, board_sprite)
@@ -830,8 +890,10 @@ func _update_arrival_display() -> void:
 	if arrival_panel:
 		arrival_panel.visible = false
 
-	# Clear old placement highlights - hovering piece provides visual cue now
-	if not can_place:
+	# Show or clear placement highlights
+	if can_place and not game_state.is_ai_turn():
+		_show_placement_highlights()
+	else:
 		_clear_placement_highlights()
 
 	# Update queue preview
@@ -875,8 +937,67 @@ func _get_piece_texture(piece_type: int, side: int) -> Texture2D:
 
 
 func _show_placement_highlights() -> void:
+	## Show arrow indicators pointing at valid placement squares
 	_clear_placement_highlights()
-	# We no longer show green highlights - the hovering piece provides the visual cue
+
+	if game_state == null or not game_state.must_place_piece():
+		return
+
+	# Don't show highlights during AI's turn
+	if game_state.is_ai_turn():
+		return
+
+	var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
+	if arriving == null:
+		return
+
+	var is_white := game_state.current_player == Piece.Side.WHITE
+	var target_row := 0 if is_white else 7
+
+	# Check each column on the back row
+	for col in range(BOARD_SIZE):
+		var target_pos := Vector2i(col, target_row)
+
+		# Check if placement is valid at this position
+		if game_state.board.can_place_piece_at(target_pos, arriving):
+			# Create arrow indicator pointing at the valid square
+			var arrow := _create_placement_arrow(col, is_white)
+			highlights_layer.add_child(arrow)
+			legal_move_indicators.append(arrow)
+
+
+func _create_placement_arrow(col: int, is_white: bool) -> Polygon2D:
+	## Create a small arrow indicator pointing at a placement column
+	var arrow := Polygon2D.new()
+	arrow.color = PLACEMENT_INDICATOR_COLOR
+	arrow.antialiased = true
+
+	# Arrow dimensions - small and compact
+	var arrow_width := square_size * 0.25
+	var arrow_height := square_size * 0.15
+	var center_x := col * square_size + square_size / 2
+
+	# Position arrow completely outside the board, pointing inward
+	var base_y: float
+	var tip_y: float
+	var gap := square_size * 0.08  # Small gap from board edge
+	if is_white:
+		# White places on row 0 (bottom of display) - arrow points up from below
+		base_y = BOARD_SIZE * square_size + gap + arrow_height
+		tip_y = BOARD_SIZE * square_size + gap
+	else:
+		# Black places on row 7 (top of display) - arrow points down from above
+		base_y = -gap - arrow_height
+		tip_y = -gap
+
+	# Create triangle pointing at the square
+	arrow.polygon = PackedVector2Array([
+		Vector2(center_x, tip_y),  # Tip
+		Vector2(center_x - arrow_width / 2, base_y),  # Left base
+		Vector2(center_x + arrow_width / 2, base_y),  # Right base
+	])
+
+	return arrow
 
 
 func _update_hovering_piece() -> void:
@@ -885,6 +1006,11 @@ func _update_hovering_piece() -> void:
 		hovering_piece.visible = false
 		ghost_piece.visible = false
 		hovered_column = -1
+		# Clear any bishop placement warning when leaving placement mode
+		if status_label.text.begins_with("Bishop"):
+			status_label.text = ""
+			if is_mobile and mobile_status_label:
+				mobile_status_label.text = ""
 		return
 
 	var is_white := game_state.current_player == Piece.Side.WHITE
@@ -939,8 +1065,20 @@ func _update_hovering_piece() -> void:
 		# Tint the piece if column is invalid
 		if is_valid:
 			hovering_piece.modulate = Color.WHITE
+			# Clear any bishop placement warning
+			if arriving.type == Piece.Type.BISHOP and status_label.text.begins_with("Bishop"):
+				status_label.text = ""
+				if is_mobile and mobile_status_label:
+					mobile_status_label.text = ""
 		else:
 			hovering_piece.modulate = Color(1, 0.5, 0.5, 0.7)  # Reddish tint
+			# Show reason for invalid placement for bishops
+			if arriving.type == Piece.Type.BISHOP and game_state.board.is_empty(target_pos):
+				var square_color_name := "dark" if (col + target_row) % 2 == 0 else "light"
+				var msg := "Bishop on %s squares already" % square_color_name
+				status_label.text = msg
+				if is_mobile and mobile_status_label:
+					mobile_status_label.text = msg
 
 		# Show ghost on target square if valid
 		if is_valid:
@@ -972,12 +1110,20 @@ func _notification(what: int) -> void:
 		_on_resized()
 
 
+var _force_next_resize: bool = false  # Flag to force resize even if size unchanged
+
+
 func _on_resized() -> void:
 	# Recalculate square size based on available space
 	if board_container == null or squares_grid == null:
 		return
 
 	var available := mini(board_container.size.x, board_container.size.y)
+
+	# Skip if available size is too small (layout not ready)
+	if available < 100:
+		return
+
 	var new_square_size: float = available / BOARD_SIZE
 
 	# Calculate new board position
@@ -989,8 +1135,10 @@ func _on_resized() -> void:
 	# Check if anything actually changed (size OR position)
 	var size_changed := absf(new_square_size - square_size) >= 0.1
 	var pos_changed := squares_grid.position.distance_to(new_board_pos) >= 0.1
+	var force := _force_next_resize
+	_force_next_resize = false
 
-	if not size_changed and not pos_changed:
+	if not force and not size_changed and not pos_changed:
 		return
 
 	square_size = new_square_size
@@ -1031,6 +1179,8 @@ func _initial_layout_setup() -> void:
 func _on_viewport_size_changed() -> void:
 	## Handle viewport size changes (including orientation changes)
 	_check_mobile_mode(false)
+	# Force resize after orientation changes to ensure pieces are repositioned
+	_force_next_resize = true
 	# Always trigger resize on viewport change to handle orientation changes
 	# even when mobile mode doesn't change (e.g., portrait to landscape on phone)
 	call_deferred("_deferred_resize_update")
@@ -1040,13 +1190,12 @@ func _check_mobile_mode(force_update: bool = false) -> void:
 	## Check viewport size and switch layout mode if needed
 	var viewport_size: Vector2i = get_viewport().size
 
-	# Detect mobile by:
-	# 1. Portrait orientation (height > width) - likely phone
-	# 2. Or small viewport width accounting for device pixel ratio (physical pixels)
-	# iPhone 14 Pro reports ~2200px physical in portrait (734 CSS * 3x scale)
-	var is_portrait: bool = viewport_size.y > viewport_size.x
-	var is_small_screen: bool = viewport_size.x < MOBILE_BREAKPOINT * 3  # Account for up to 3x DPI
-	var new_is_mobile: bool = is_portrait or (is_small_screen and viewport_size.x < 2400)
+	# Detect mobile by checking if viewport is too narrow for side panel layout
+	# Use a reasonable breakpoint - side panel needs ~200px, so below ~900px total is tight
+	# Also check for portrait on small screens (phones)
+	var is_narrow: bool = viewport_size.x < MOBILE_BREAKPOINT  # 800px
+	var is_portrait_and_small: bool = viewport_size.y > viewport_size.x and viewport_size.x < 1200
+	var new_is_mobile: bool = is_narrow or is_portrait_and_small
 
 	if force_update or new_is_mobile != is_mobile:
 		is_mobile = new_is_mobile
@@ -1060,24 +1209,31 @@ func _update_layout() -> void:
 
 	if is_mobile:
 		# Mobile layout: minimal margins, hide side panel, show mobile UI overlay
+		# Leave space at top for mobile status bar and bottom for controls
 		margin_container.add_theme_constant_override("margin_left", 4)
-		margin_container.add_theme_constant_override("margin_top", 4)
+		margin_container.add_theme_constant_override("margin_top", 60)  # Space for mobile top bar
 		margin_container.add_theme_constant_override("margin_right", 4)
-		margin_container.add_theme_constant_override("margin_bottom", 4)
+		margin_container.add_theme_constant_override("margin_bottom", 130)  # Space for mobile bottom bar + queue
 
 		# Hide side panel - board will expand to fill space
 		if side_panel:
 			side_panel.visible = false
 
-		# Hide arrival areas on mobile (mobile UI has its own queue display)
+		# Hide arrival areas AND collapse their space on mobile
 		if black_arrival_area:
 			black_arrival_area.visible = false
+			black_arrival_area.custom_minimum_size = Vector2(0, 0)
 		if white_arrival_area:
 			white_arrival_area.visible = false
+			white_arrival_area.custom_minimum_size = Vector2(0, 0)
 
-		# Show mobile UI overlay (positioned absolutely, doesn't need margin space)
+		# Show mobile UI overlay (positioned absolutely)
 		if mobile_ui:
 			mobile_ui.visible = true
+
+		# Hide history panel on mobile (no space)
+		if history_panel:
+			history_panel.visible = false
 
 		# Update mobile display
 		_update_mobile_display()
@@ -1091,14 +1247,20 @@ func _update_layout() -> void:
 		if side_panel:
 			side_panel.visible = true
 
-		# Show arrival areas on desktop
+		# Show arrival areas on desktop and restore their minimum size
 		if black_arrival_area:
 			black_arrival_area.visible = true
+			black_arrival_area.custom_minimum_size = Vector2(0, 70)
 		if white_arrival_area:
 			white_arrival_area.visible = true
+			white_arrival_area.custom_minimum_size = Vector2(0, 70)
 
 		if mobile_ui:
 			mobile_ui.visible = false
+
+		# Show history panel on desktop
+		if history_panel:
+			history_panel.visible = true
 
 	# Force layout recalculation after layout settles
 	# Use multiple deferred calls to ensure layout has fully updated
@@ -1109,6 +1271,11 @@ func _update_layout() -> void:
 func _deferred_resize_update() -> void:
 	## Called after layout changes to ensure pieces are correctly positioned
 	## This runs after the first deferred _on_resized, giving layout time to settle
+	## Wait multiple frames for layout to fully settle (important for orientation changes)
+	for i in range(3):
+		await get_tree().process_frame
+	_on_resized()
+	# One more update after additional settling
 	await get_tree().process_frame
 	_on_resized()
 
@@ -1299,6 +1466,15 @@ func _get_column_under_cursor() -> int:
 # Promotion dialog handling
 
 func _on_promotion_needed(pos: Vector2i, side: int) -> void:
+	# If it's AI's turn, auto-select Queen (best choice in almost all cases)
+	if game_state and game_state.is_ai_turn():
+		# Small delay so player can see the pawn reaching the rank
+		await get_tree().create_timer(0.2).timeout
+		game_state.complete_promotion(Piece.Type.QUEEN)
+		_update_turn_display()
+		_update_arrival_display()
+		return
+
 	_show_promotion_dialog(side)
 
 
@@ -1604,3 +1780,161 @@ func _is_valid_arrow_target(from: Vector2i, to: Vector2i, piece: Piece) -> bool:
 			return false
 
 	return false
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Move History
+# ─────────────────────────────────────────────────────────────────────────────
+
+var move_number: int = 1  # Current move number for notation
+
+func _on_move_executed(_move_data: Dictionary) -> void:
+	## Called when a move is made - update the history display
+	_update_history_display()
+
+
+func _clear_history_display() -> void:
+	## Clear the move history display
+	if history_text:
+		history_text.text = ""
+
+
+func _update_history_display() -> void:
+	## Rebuild the move history text from game_state.move_history
+	if game_state == null or history_text == null:
+		return
+
+	var text := ""
+	var move_num := 1
+
+	for i in range(game_state.move_history.size()):
+		var move_data: Dictionary = game_state.move_history[i]
+		var notation := _move_to_notation(move_data)
+
+		# Determine if this is white's or black's move based on piece side
+		var piece = move_data.get("piece", move_data.get("moved_piece"))
+		var is_white_move: bool = piece != null and piece.side == Piece.Side.WHITE
+
+		if is_white_move:
+			text += "%d. %s " % [move_num, notation]
+		else:
+			text += "%s\n" % notation
+			move_num += 1
+
+	# Handle case where last move was white's (no newline yet)
+	if text.length() > 0 and not text.ends_with("\n"):
+		text = text.strip_edges()
+
+	history_text.text = text
+
+	# Scroll to bottom
+	await get_tree().process_frame
+	if history_text:
+		history_text.scroll_vertical = history_text.get_v_scroll_bar().max_value
+
+
+func _move_to_notation(move_data: Dictionary) -> String:
+	## Convert move data to algebraic notation (e.g., "Nf3", "exd5", "O-O")
+	var from: Vector2i = move_data.get("from", Vector2i(-1, -1))
+	var to: Vector2i = move_data.get("to", Vector2i(-1, -1))
+	var piece = move_data.get("piece", move_data.get("moved_piece"))
+	var captured = move_data.get("captured", move_data.get("captured_piece"))
+	var special: String = move_data.get("special", "")
+
+	if piece == null:
+		return "?"
+
+	# Handle castling
+	if special == "castle_kingside":
+		return "O-O"
+	elif special == "castle_queenside":
+		return "O-O-O"
+
+	var notation := ""
+
+	# Piece letter (except for pawns)
+	match piece.type:
+		Piece.Type.KING:
+			notation += "K"
+		Piece.Type.QUEEN:
+			notation += "Q"
+		Piece.Type.ROOK:
+			notation += "R"
+		Piece.Type.BISHOP:
+			notation += "B"
+		Piece.Type.KNIGHT:
+			notation += "N"
+		Piece.Type.PAWN:
+			# For pawn captures, include the file letter
+			if captured != null:
+				notation += _col_to_file(from.x)
+
+	# Capture indicator
+	if captured != null:
+		notation += "x"
+
+	# Destination square
+	notation += _pos_to_square(to)
+
+	# Promotion
+	if special.begins_with("promotion"):
+		var promo_type := special.replace("promotion_", "")
+		match promo_type:
+			"queen":
+				notation += "=Q"
+			"rook":
+				notation += "=R"
+			"bishop":
+				notation += "=B"
+			"knight":
+				notation += "=N"
+
+	# En passant
+	if special == "en_passant":
+		notation += " e.p."
+
+	return notation
+
+
+func _col_to_file(col: int) -> String:
+	## Convert column (0-7) to file letter (a-h)
+	return char(ord("a") + col)
+
+
+func _pos_to_square(pos: Vector2i) -> String:
+	## Convert board position to square notation (e.g., "e4")
+	return _col_to_file(pos.x) + str(pos.y + 1)
+
+
+func _on_copy_button_pressed() -> void:
+	## Copy move history to clipboard
+	if history_text == null:
+		return
+
+	var text := history_text.text
+	if text.is_empty():
+		text = "No moves"
+
+	DisplayServer.clipboard_set(text)
+
+	# Visual feedback - briefly change button text
+	copy_button.text = "Copied!"
+	await get_tree().create_timer(1.0).timeout
+	if copy_button:
+		copy_button.text = "Copy Moves"
+
+
+func _on_about_button_pressed() -> void:
+	## Show the About dialog
+	about_dialog.visible = true
+
+
+func _on_about_close_pressed() -> void:
+	## Hide the About dialog
+	about_dialog.visible = false
+
+
+func _on_link_clicked(meta: Variant) -> void:
+	## Handle clicking on links in RichTextLabel
+	var url := str(meta)
+	OS.shell_open(url)

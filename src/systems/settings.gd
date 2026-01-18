@@ -22,7 +22,7 @@ var audio_theme: String = "classic"
 
 ## Visual settings
 var board_theme: String = "classic"
-var piece_set: String = "spatial"  ## Options: "standard", "spatial"
+var piece_set: String = "standard"  ## Options: "standard", "spatial"
 var show_coordinates: bool = true
 var show_legal_moves: bool = true
 var animation_speed: float = 1.0
@@ -70,7 +70,8 @@ func load_settings() -> void:
 
 	# Visual settings
 	board_theme = data.get("board_theme", board_theme)
-	piece_set = data.get("piece_set", piece_set)
+	# Force standard pieces (with outlines) until settings menu exists
+	piece_set = "standard"
 	show_coordinates = data.get("show_coordinates", show_coordinates)
 	show_legal_moves = data.get("show_legal_moves", show_legal_moves)
 	animation_speed = data.get("animation_speed", animation_speed)

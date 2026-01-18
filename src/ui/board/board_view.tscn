@@ -179,15 +179,46 @@ layout_mode = 2
 alignment = 1
 theme_override_constants/separation = 4
 
-[node name="Spacer" type="Control" parent="MarginContainer/HBoxContainer/SidePanel"]
+[node name="HistoryPanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 5
 
-[node name="NewGameButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel"]
+[node name="HistoryLabel" type="Label" parent="MarginContainer/HBoxContainer/SidePanel/HistoryPanel"]
+layout_mode = 2
+text = "Move History"
+horizontal_alignment = 1
+
+[node name="HistoryText" type="TextEdit" parent="MarginContainer/HBoxContainer/SidePanel/HistoryPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+placeholder_text = "No moves yet"
+editable = false
+wrap_mode = 1
+
+[node name="CopyButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel/HistoryPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Copy Moves"
+
+[node name="BottomButtons" type="HBoxContainer" parent="MarginContainer/HBoxContainer/SidePanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NewGameButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel/BottomButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "New Game"
+
+[node name="AboutButton" type="Button" parent="MarginContainer/HBoxContainer/SidePanel/BottomButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "?"
 
 [node name="MobileUI" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
@@ -205,28 +236,35 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 0
 
-[node name="HBox" type="HBoxContainer" parent="MobileUI/MobileTopBar"]
+[node name="MarginContainer" type="MarginContainer" parent="MobileUI/MobileTopBar"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
 
-[node name="MobileTurnIndicator" type="ColorRect" parent="MobileUI/MobileTopBar/HBox"]
+[node name="HBox" type="HBoxContainer" parent="MobileUI/MobileTopBar/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MobileTurnIndicator" type="ColorRect" parent="MobileUI/MobileTopBar/MarginContainer/HBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_vertical = 4
 color = Color(1, 1, 1, 1)
 
-[node name="MobileTurnLabel" type="Label" parent="MobileUI/MobileTopBar/HBox"]
+[node name="MobileTurnLabel" type="Label" parent="MobileUI/MobileTopBar/MarginContainer/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 36
 text = "White to move"
 
-[node name="MobileStatusLabel" type="Label" parent="MobileUI/MobileTopBar/HBox"]
+[node name="MobileStatusLabel" type="Label" parent="MobileUI/MobileTopBar/MarginContainer/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 theme_override_colors/font_color = Color(0.9, 0.3, 0.3, 1)
 
 [node name="Spacer" type="Control" parent="MobileUI"]
@@ -238,20 +276,32 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 0
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="MobileQueueContainer" type="HBoxContainer" parent="MobileUI/MobileBottomBar"]
 unique_name_in_owner = true
 layout_mode = 2
 alignment = 1
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
-[node name="MobileNewGameButton" type="Button" parent="MobileUI/MobileBottomBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 70)
+[node name="MobileButtonsRow" type="HBoxContainer" parent="MobileUI/MobileBottomBar"]
 layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MobileNewGameButton" type="Button" parent="MobileUI/MobileBottomBar/MobileButtonsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 28
 text = "New Game"
+
+[node name="MobileAboutButton" type="Button" parent="MobileUI/MobileBottomBar/MobileButtonsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "?"
 
 [node name="PromotionDialog" type="PanelContainer" parent="."]
 unique_name_in_owner = true
@@ -283,3 +333,59 @@ unique_name_in_owner = true
 layout_mode = 2
 alignment = 1
 theme_override_constants/separation = 10
+
+[node name="AboutDialog" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -140.0
+offset_right = 160.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="AboutDialog"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="AboutDialog/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="AboutDialog/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Saktris"
+horizontal_alignment = 1
+
+[node name="Description" type="RichTextLabel" parent="AboutDialog/MarginContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "Chess variant where pieces arrive gradually.
+
+[b]Rules:[/b]
+• Place arriving pieces on your back row
+• Placing ends your turn
+• Three same pieces in a row = cleared!
+• Capture the king to win
+
+[url=https://github.com/tomgun/saktris-game]View rules & source on GitHub[/url]"
+fit_content = true
+scroll_active = false
+
+[node name="CloseButton" type="Button" parent="AboutDialog/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Close"

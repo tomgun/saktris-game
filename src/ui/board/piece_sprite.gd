@@ -28,6 +28,16 @@ const PIECE_FILES := {
 	}
 }
 
+## Piece weights for physics simulation (based on chess point values)
+const PIECE_WEIGHTS := {
+	Piece.Type.PAWN: 1.0,
+	Piece.Type.KNIGHT: 3.0,
+	Piece.Type.BISHOP: 3.0,
+	Piece.Type.ROOK: 5.0,
+	Piece.Type.QUEEN: 9.0,
+	Piece.Type.KING: 10.0,
+}
+
 var piece: Piece
 var board_position: Vector2i
 
@@ -162,23 +172,31 @@ func start_bump(direction: Vector2, speed: float = 400.0) -> void:
 	z_index = 100
 
 
-func nudge(push_direction: Vector2, strength: float = 0.3) -> void:
+func nudge(push_direction: Vector2, strength: float = 0.3, attacker_weight: float = 1.0) -> void:
 	## Called when another piece bumps into this one
+	## attacker_weight affects how much this piece moves (heavier attacker = more push)
 	if is_bumping or is_moving:
 		return  # Don't nudge pieces that are flying off or moving
 
 	if not is_returning:
 		home_position = position
 
-	# Push in the direction with some randomness
-	var offset := push_direction.normalized() * size.x * strength
+	# Calculate weight factor: heavier attackers push more, heavier targets move less
+	var my_weight := get_weight()
+	var weight_factor := attacker_weight / my_weight
+
+	# Push in the direction with some randomness, scaled by weight
+	var offset := push_direction.normalized() * size.x * strength * weight_factor
 	offset += Vector2(randf_range(-5, 5), randf_range(-5, 5))
 	position += offset
 	is_returning = true
 
+	# Return speed also affected by weight (heavier pieces return slower/more deliberately)
+	var return_duration := 1.5 * sqrt(my_weight / 3.0)  # Normalized around bishop/knight
+
 	# Start returning after a tiny delay
 	var tween := create_tween()
-	tween.tween_property(self, "position", home_position, 1.5).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC).set_delay(0.05)
+	tween.tween_property(self, "position", home_position, return_duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC).set_delay(0.05)
 	tween.tween_callback(func(): is_returning = false)
 
 
@@ -209,3 +227,10 @@ func get_center() -> Vector2:
 
 func get_collision_radius() -> float:
 	return size.x * 0.45
+
+
+func get_weight() -> float:
+	## Get the physics weight of this piece based on chess point values
+	if piece and PIECE_WEIGHTS.has(piece.type):
+		return PIECE_WEIGHTS[piece.type]
+	return 1.0  # Default to pawn weight
