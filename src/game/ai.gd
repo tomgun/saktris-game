@@ -171,9 +171,6 @@ func _get_best_regular_move(game_state: GameState) -> Dictionary:
 	var beta := INF
 
 	var all_moves := _get_all_moves(game_state.board, side)
-	print("[DEBUG AI] Finding moves for side %d, found %d moves" % [side, all_moves.size()])
-	if all_moves.size() > 0:
-		print("[DEBUG AI] Sample moves: %s" % [all_moves.slice(0, 3)])
 
 	# Shuffle for variety when moves have equal scores
 	all_moves.shuffle()
@@ -295,18 +292,14 @@ func _evaluate_board(board: Board) -> float:
 func _get_all_moves(board: Board, for_side: int) -> Array:
 	## Get all legal moves for a side
 	var moves := []
-	var pieces_found := 0
 	for row in range(Board.BOARD_SIZE):
 		for col in range(Board.BOARD_SIZE):
 			var pos := Vector2i(col, row)
 			var piece := board.get_piece(pos)
 			if piece and piece.side == for_side:
-				pieces_found += 1
 				var piece_moves := board.get_legal_moves(pos)
-				print("[DEBUG AI] Piece at %s (type=%d) has %d legal moves" % [pos, piece.type, piece_moves.size()])
 				for target in piece_moves:
 					moves.append({"from": pos, "to": target})
-	print("[DEBUG AI] Total pieces found for side %d: %d" % [for_side, pieces_found])
 	return moves
 
 

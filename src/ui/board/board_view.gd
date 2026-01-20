@@ -36,6 +36,17 @@ var long_press_timer: Timer = null
 var long_press_start_pos: Vector2 = Vector2.ZERO
 const LONG_PRESS_DURATION := 0.5  # seconds
 
+# Touch dragging state (for piece dragging on mobile)
+var touch_dragging_piece: bool = false
+var touch_drag_sprite: PieceSprite = null
+var touch_drag_start_board_pos: Vector2i = Vector2i(-1, -1)
+var touch_drag_distance: float = 0.0
+const TOUCH_DRAG_THRESHOLD := 10.0  # Minimum distance to count as drag vs tap
+
+# Online multiplayer state
+var is_online_mode: bool = false
+var my_side: int = Piece.Side.WHITE  # Which side we control in online mode
+
 # Arrow drawing state
 var arrow_start_pos: Vector2i = Vector2i(-1, -1)  # Board position where arrow starts
 var arrow_piece: Piece = null  # Piece we're drawing arrows from
@@ -90,6 +101,26 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 signal new_game_requested
 
 
+func set_online_mode(enabled: bool, side: int) -> void:
+	## Enable online multiplayer mode
+	is_online_mode = enabled
+	my_side = side
+
+
+func is_my_turn() -> bool:
+	## Returns true if it's our turn in online mode, or always true in local mode
+	if not is_online_mode:
+		return true
+	if game_state == null:
+		return false
+	return game_state.current_player == my_side
+
+
+func is_remote_turn() -> bool:
+	## Returns true if waiting for remote player's move
+	return is_online_mode and not is_my_turn()
+
+
 func _ready() -> void:
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	mobile_new_game_button.pressed.connect(_on_new_game_pressed)
@@ -116,10 +147,12 @@ func _input(event: InputEvent) -> void:
 	# Handle touch input (mobile)
 	if event is InputEventScreenTouch:
 		_handle_touch_event(event)
+		get_viewport().set_input_as_handled()
 		return
 
 	if event is InputEventScreenDrag:
 		_handle_touch_drag(event)
+		get_viewport().set_input_as_handled()
 		return
 
 	# Handle right-click for arrow drawing (desktop)
@@ -140,7 +173,7 @@ func _input(event: InputEvent) -> void:
 		if planning_arrows.size() > 0:
 			_clear_planning_arrows()
 
-		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn():
+		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn() and not is_remote_turn():
 			# Use actual square positions to determine column (more robust)
 			var col := _get_column_under_cursor()
 			if col >= 0 and col < BOARD_SIZE:
@@ -151,6 +184,9 @@ func _input(event: InputEvent) -> void:
 				var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
 				if arriving and game_state.board.can_place_piece_at(target_pos, arriving):
 					if game_state.try_place_piece(col):
+						# Send placement to remote in online mode
+						if is_online_mode:
+							NetworkManager.send_placement(col)
 						# Turn ends after placing - no auto-select needed
 						_clear_placement_highlights()
 						_update_arrival_display()
@@ -301,8 +337,8 @@ func _on_square_clicked(board_pos: Vector2i) -> void:
 	if game_state == null:
 		return
 
-	# Ignore clicks during AI's turn
-	if game_state.is_ai_turn():
+	# Ignore clicks during AI's turn or remote player's turn
+	if game_state.is_ai_turn() or is_remote_turn():
 		return
 
 	# Check if we need to place an arriving piece first
@@ -340,7 +376,13 @@ func _try_place_arriving_piece(board_pos: Vector2i) -> bool:
 	if board_pos.y != expected_row:
 		return false
 
-	return game_state.try_place_piece(board_pos.x)
+	var success := game_state.try_place_piece(board_pos.x)
+
+	# Send placement to remote player in online mode
+	if success and is_online_mode:
+		NetworkManager.send_placement(board_pos.x)
+
+	return success
 
 
 func _select_piece(pos: Vector2i) -> void:
@@ -367,12 +409,16 @@ func _deselect() -> void:
 
 func _execute_move(from: Vector2i, to: Vector2i) -> void:
 	_deselect()
-	game_state.try_move(from, to)
+	var success := game_state.try_move(from, to)
+
+	# Send move to remote player in online mode
+	if success and is_online_mode:
+		NetworkManager.send_move(from, to)
 
 
 func _on_piece_drag_started(sprite: PieceSprite) -> void:
 	## Handle piece drag start
-	if game_state == null or game_state.is_ai_turn():
+	if game_state == null or game_state.is_ai_turn() or is_remote_turn():
 		sprite.cancel_drag()
 		return
 
@@ -403,7 +449,13 @@ func _on_piece_drag_ended(sprite: PieceSprite, was_drag: bool) -> void:
 		return
 
 	# Find what square we're over
-	var drop_pos := _pixel_to_board(sprite.position + sprite.size / 2)
+	# sprite.position is relative to pieces_layer which is at grid position,
+	# so we can calculate board position directly without grid offset
+	var sprite_center := sprite.position + sprite.size / 2
+	var col := int(sprite_center.x / square_size)
+	var display_row := int(sprite_center.y / square_size)
+	var board_row := BOARD_SIZE - 1 - display_row
+	var drop_pos := Vector2i(col, board_row)
 
 	if drop_pos in legal_moves:
 		# Valid move - execute it
@@ -424,7 +476,7 @@ func _on_piece_clicked(sprite: PieceSprite) -> void:
 	dragging_sprite = null
 	drag_was_new_selection = false
 
-	if game_state == null or game_state.is_ai_turn():
+	if game_state == null or game_state.is_ai_turn() or is_remote_turn():
 		return
 
 	# Can't select during placement phase
@@ -846,6 +898,13 @@ func _update_turn_display() -> void:
 	var current := "White" if is_white else "Black"
 	var action := "place" if game_state.must_place_piece() else "move"
 	var text := "%s to %s" % [current, action]
+
+	# In online mode, show "Your turn" or "Opponent's turn"
+	if is_online_mode:
+		if is_my_turn():
+			text = "Your turn to %s" % action
+		else:
+			text = "Opponent's turn..."
 
 	# Update desktop turn display
 	turn_label.text = text
@@ -1336,6 +1395,9 @@ func _handle_touch_event(event: InputEventScreenTouch) -> void:
 		# Clear existing planning arrows on tap
 		if planning_arrows.size() > 0:
 			_clear_planning_arrows()
+
+		# Check if touching a piece for potential drag
+		_start_touch_piece_drag(event.position)
 	else:
 		# Touch ended
 		long_press_timer.stop()
@@ -1343,6 +1405,9 @@ func _handle_touch_event(event: InputEventScreenTouch) -> void:
 		if is_drawing_arrow:
 			# Finish arrow drawing
 			_finish_arrow_drawing()
+		elif touch_dragging_piece:
+			# End piece drag
+			_end_touch_piece_drag(event.position)
 		else:
 			# This was a tap - simulate click
 			_handle_touch_tap(event.position)
@@ -1350,17 +1415,120 @@ func _handle_touch_event(event: InputEventScreenTouch) -> void:
 
 func _handle_touch_drag(event: InputEventScreenDrag) -> void:
 	## Handle touch drag events
+	var prev_pos := last_touch_position
 	last_touch_position = event.position
 
 	# Cancel long press if finger moved too far
 	if long_press_timer.time_left > 0:
-		var drag_distance := event.position.distance_to(long_press_start_pos)
-		if drag_distance > 20:  # 20px threshold
+		var drag_dist := event.position.distance_to(long_press_start_pos)
+		if drag_dist > 20:  # 20px threshold
 			long_press_timer.stop()
+
+	# Update piece position while dragging
+	if touch_dragging_piece and touch_drag_sprite:
+		touch_drag_distance += event.position.distance_to(prev_pos)
+		_update_touch_piece_drag(event.position)
+		return
 
 	# Update arrow while drawing
 	if is_drawing_arrow:
 		_update_current_arrow()
+
+
+func _start_touch_piece_drag(screen_pos: Vector2) -> void:
+	## Check if touching a piece and start dragging if valid
+	if game_state == null or game_state.is_ai_turn() or is_remote_turn():
+		return
+
+	# Can't drag during placement phase
+	if game_state.must_place_piece():
+		return
+
+	# Find board position
+	var local_pos := board_container.get_global_transform().affine_inverse() * screen_pos
+	var board_pos := _pixel_to_board(local_pos)
+
+	if not _is_valid_board_pos(board_pos):
+		return
+
+	# Check if there's a piece we can drag
+	var piece := game_state.board.get_piece(board_pos)
+	if piece == null or piece.side != game_state.current_player:
+		return
+
+	# Get the sprite
+	if board_pos not in piece_sprites:
+		return
+
+	var sprite: PieceSprite = piece_sprites[board_pos]
+
+	# Start the drag
+	touch_dragging_piece = true
+	touch_drag_sprite = sprite
+	touch_drag_start_board_pos = board_pos
+	touch_drag_distance = 0.0
+
+	# Select the piece and show legal moves
+	_select_piece(board_pos)
+
+	# Visual feedback - bring to front
+	sprite.z_index = 50
+
+
+func _update_touch_piece_drag(screen_pos: Vector2) -> void:
+	## Update dragged piece position
+	if touch_drag_sprite == null:
+		return
+
+	# Convert screen position to position relative to pieces_layer
+	var local_pos := pieces_layer.get_global_transform().affine_inverse() * screen_pos
+	# Center the piece on the finger
+	var new_pos := local_pos - touch_drag_sprite.size / 2
+	touch_drag_sprite.position = new_pos
+
+
+func _end_touch_piece_drag(screen_pos: Vector2) -> void:
+	## End piece drag - execute move if valid, snap back if not
+	if touch_drag_sprite == null:
+		touch_dragging_piece = false
+		return
+
+	var was_actual_drag := touch_drag_distance >= TOUCH_DRAG_THRESHOLD
+
+	if was_actual_drag:
+		# Find what square we're over
+		var local_pos := board_container.get_global_transform().affine_inverse() * screen_pos
+		var drop_pos := _pixel_to_board(local_pos)
+
+		if drop_pos in legal_moves:
+			# Valid move - execute it
+			var from_pos := touch_drag_start_board_pos
+			touch_drag_sprite.z_index = 0
+			touch_drag_sprite = null
+			touch_dragging_piece = false
+			_deselect()
+			game_state.try_move(from_pos, drop_pos)
+
+			# Send move to remote in online mode
+			if is_online_mode:
+				NetworkManager.send_move(from_pos, drop_pos)
+			return
+		else:
+			# Invalid drop - snap back
+			touch_drag_sprite.snap_back()
+	else:
+		# Was just a tap - snap back and keep selection
+		touch_drag_sprite.position = _board_to_pixel(touch_drag_start_board_pos)
+
+	# Reset drag state
+	touch_drag_sprite.z_index = 0
+	touch_drag_sprite = null
+	touch_dragging_piece = false
+
+	# If it was just a tap, toggle selection
+	if not was_actual_drag:
+		# Selection is already set, nothing more to do
+		pass
 
 
 func _on_long_press_timeout() -> void:
@@ -1376,7 +1544,7 @@ func _handle_touch_tap(position: Vector2) -> void:
 	touch_active = true
 
 	# Handle piece placement using actual square positions
-	if game_state and game_state.must_place_piece() and not game_state.is_ai_turn():
+	if game_state and game_state.must_place_piece() and not game_state.is_ai_turn() and not is_remote_turn():
 		var col := _get_column_under_cursor()
 		if col >= 0 and col < BOARD_SIZE:
 			var is_white := game_state.current_player == Piece.Side.WHITE
@@ -1386,6 +1554,9 @@ func _handle_touch_tap(position: Vector2) -> void:
 			var arriving := game_state.arrival_manager.get_current_piece(game_state.current_player)
 			if arriving and game_state.board.can_place_piece_at(target_pos, arriving):
 				if game_state.try_place_piece(col):
+					# Send placement to remote in online mode
+					if is_online_mode:
+						NetworkManager.send_placement(col)
 					_clear_placement_highlights()
 					_update_arrival_display()
 					_update_turn_display()
@@ -1515,6 +1686,10 @@ func _on_promotion_selected(piece_type: int) -> void:
 	# Complete the promotion
 	game_state.complete_promotion(piece_type)
 
+	# Send promotion to remote player in online mode
+	if is_online_mode:
+		NetworkManager.send_promotion(piece_type)
+
 	# Update displays
 	_update_turn_display()
 	_update_arrival_display()
@@ -1538,7 +1713,10 @@ func _on_new_game_pressed() -> void:
 
 
 func _on_ai_thinking_started() -> void:
-	status_label.text = "AI thinking..."
+	var text := "AI thinking..."
+	status_label.text = text
+	if is_mobile and mobile_status_label:
+		mobile_status_label.text = text
 
 
 func _on_ai_thinking_finished() -> void:
@@ -1546,7 +1724,10 @@ func _on_ai_thinking_finished() -> void:
 
 
 func _on_ai_progress(percent: float) -> void:
-	status_label.text = "AI thinking... %d%%" % int(percent * 100)
+	var text := "AI thinking... %d%%" % int(percent * 100)
+	status_label.text = text
+	if is_mobile and mobile_status_label:
+		mobile_status_label.text = text
 
 
 # Arrow drawing for move planning

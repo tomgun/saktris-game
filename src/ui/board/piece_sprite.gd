@@ -77,44 +77,76 @@ func setup(p: Piece, pos: Vector2i, square_size: float) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	# Handle mouse button events
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
-				# Start potential drag
-				drag_start_pos = position
-				drag_offset = get_local_mouse_position()
-				drag_distance = 0.0
-				is_dragging = true
-				drag_was_cancelled = false
-				z_index = 50  # Bring to front while dragging
-				drag_started.emit(self)
+				_start_drag(get_local_mouse_position())
 				accept_event()
 			else:
-				# End drag/click
-				if is_dragging:
-					var was_actual_drag := drag_distance >= DRAG_THRESHOLD
-					is_dragging = false
-					z_index = 0
+				_end_drag()
+				accept_event()
 
-					if was_actual_drag:
-						drag_ended.emit(self, true)
-					else:
-						# Was just a click - snap back and emit click
-						position = drag_start_pos
-						clicked.emit(self)
-					accept_event()
-				elif drag_was_cancelled:
-					# Drag was cancelled (e.g., clicked on enemy piece) - still emit click
-					drag_was_cancelled = false
-					clicked.emit(self)
-					accept_event()
-
+	# Handle mouse motion while dragging
 	elif event is InputEventMouseMotion and is_dragging:
-		# Update position while dragging
-		var new_pos: Vector2 = get_global_mouse_position() - get_parent().global_position - drag_offset
-		drag_distance += position.distance_to(new_pos)
-		position = new_pos
+		_update_drag(get_global_mouse_position())
 		accept_event()
+
+	# Handle touch events for mobile
+	elif event is InputEventScreenTouch:
+		if event.pressed:
+			_start_drag(_screen_to_local(event.position))
+			accept_event()
+		else:
+			_end_drag()
+			accept_event()
+
+	# Handle touch drag events
+	elif event is InputEventScreenDrag and is_dragging:
+		_update_drag(event.position)
+		accept_event()
+
+
+func _screen_to_local(screen_pos: Vector2) -> Vector2:
+	## Convert screen position to local position
+	return get_global_transform().affine_inverse() * screen_pos
+
+
+func _start_drag(local_pos: Vector2) -> void:
+	## Start a potential drag from a local position
+	drag_start_pos = position
+	drag_offset = local_pos
+	drag_distance = 0.0
+	is_dragging = true
+	drag_was_cancelled = false
+	z_index = 50  # Bring to front while dragging
+	drag_started.emit(self)
+
+
+func _end_drag() -> void:
+	## End drag/click interaction
+	if is_dragging:
+		var was_actual_drag := drag_distance >= DRAG_THRESHOLD
+		is_dragging = false
+		z_index = 0
+
+		if was_actual_drag:
+			drag_ended.emit(self, true)
+		else:
+			# Was just a click - snap back and emit click
+			position = drag_start_pos
+			clicked.emit(self)
+	elif drag_was_cancelled:
+		# Drag was cancelled (e.g., clicked on enemy piece) - still emit click
+		drag_was_cancelled = false
+		clicked.emit(self)
+
+
+func _update_drag(global_pos: Vector2) -> void:
+	## Update position while dragging
+	var new_pos: Vector2 = global_pos - get_parent().global_position - drag_offset
+	drag_distance += position.distance_to(new_pos)
+	position = new_pos
 
 
 func cancel_drag() -> void:

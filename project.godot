@@ -29,6 +29,7 @@ GameManager="*res://src/systems/game_manager.gd"
 Settings="*res://src/systems/settings.gd"
 AudioManager="*res://src/systems/audio_manager.gd"
 ThemeManager="*res://src/systems/theme_manager.gd"
+NetworkManager="*res://src/network/network_manager.gd"
 
 [display]
 

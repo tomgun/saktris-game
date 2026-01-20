@@ -1,0 +1,200 @@
+[gd_scene load_steps=2 format=3 uid="uid://cq8vk4nwx2hj3"]
+
+[ext_resource type="Script" path="res://src/ui/multiplayer/multiplayer_menu.gd" id="1_menu"]
+
+[node name="MultiplayerMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.12, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Play Online"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = ""
+horizontal_alignment = 1
+
+[node name="MainPanel" type="PanelContainer" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/MainPanel"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/VBoxContainer/MainPanel/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="SideLabel" type="Label" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox"]
+layout_mode = 2
+text = "Play as:"
+horizontal_alignment = 1
+
+[node name="SideSelector" type="HBoxContainer" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="WhiteButton" type="Button" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox/SideSelector"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+text = "White"
+
+[node name="BlackButton" type="Button" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox/SideSelector"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+toggle_mode = true
+text = "Black"
+
+[node name="CreateButton" type="Button" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(250, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Create Game"
+
+[node name="JoinButton" type="Button" parent="CenterContainer/VBoxContainer/MainPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(250, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Join Game"
+
+[node name="WaitingPanel" type="PanelContainer" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/WaitingPanel"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="WaitingLabel" type="Label" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+layout_mode = 2
+text = "Room Code:"
+horizontal_alignment = 1
+
+[node name="RoomCodeDisplay" type="Label" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "XXXXXX"
+horizontal_alignment = 1
+
+[node name="ShareLabel" type="Label" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Share this code with your opponent"
+horizontal_alignment = 1
+
+[node name="CancelButton" type="Button" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Cancel"
+
+[node name="JoinPanel" type="PanelContainer" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/JoinPanel"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/VBoxContainer/JoinPanel/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="JoinLabel" type="Label" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox"]
+layout_mode = 2
+text = "Enter Room Code:"
+horizontal_alignment = 1
+
+[node name="RoomCodeInput" type="LineEdit" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+alignment = 1
+max_length = 6
+placeholder_text = "ABC123"
+caret_blink = true
+
+[node name="CancelButton2" type="Button" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox"]
+custom_minimum_size = Vector2(200, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Cancel"
+
+[node name="BackButton" type="Button" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Back to Menu"
+
+[connection signal="pressed" from="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox/CancelButton2" to="." method="_on_cancel_pressed"]
