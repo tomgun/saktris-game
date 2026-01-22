@@ -21,6 +21,11 @@ const PIECE_VALUES := {
 const CENTER_BONUS := 10
 const ADVANCED_PAWN_BONUS := 5
 
+## Async evaluation settings
+const YIELD_EVERY_N_NODES := 50  # Yield to UI every N nodes evaluated
+var _nodes_evaluated: int = 0
+var _total_nodes_estimate: int = 0
+
 var difficulty: Difficulty = Difficulty.MEDIUM
 var max_depth: int = 3
 var side: int = Piece.Side.BLACK
@@ -64,7 +69,7 @@ func get_best_move_async(game_state: GameState) -> Dictionary:
 
 
 func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
-	## Async version that yields every few moves to keep UI responsive
+	## Async version that yields periodically to keep UI responsive
 	var best_move := {"from": Vector2i(-1, -1), "to": Vector2i(-1, -1)}
 	var best_score := -INF
 	var alpha := -INF
@@ -79,15 +84,16 @@ func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
 	if total == 0:
 		return best_move
 
+	# Reset node counter for progress tracking
+	_nodes_evaluated = 0
+	# Rough estimate: each top-level move explores ~30^depth nodes (with pruning ~10^depth)
+	_total_nodes_estimate = total * int(pow(10, max_depth - 1))
+
 	for i in range(total):
 		var move = all_moves[i]
 
-		# Yield every 3 moves to let UI update
-		if i % 3 == 0 and i > 0:
-			progress_updated.emit(float(i) / total)
-			await Engine.get_main_loop().process_frame
-
-		var score := _minimax(game_state.board, move["from"], move["to"],
+		# Use async minimax that yields periodically
+		var score: float = await _minimax_async(game_state.board, move["from"], move["to"],
 							  max_depth - 1, alpha, beta, false)
 
 		if score > best_score:
@@ -98,6 +104,70 @@ func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
 
 	progress_updated.emit(1.0)
 	return best_move
+
+
+func _minimax_async(board: Board, from: Vector2i, to: Vector2i,
+			  depth: int, alpha: float, beta: float, is_maximizing: bool) -> float:
+	## Async minimax with alpha-beta pruning - yields periodically to keep UI responsive
+
+	# Yield periodically to let animations run
+	_nodes_evaluated += 1
+	if _nodes_evaluated % YIELD_EVERY_N_NODES == 0:
+		var progress := clampf(float(_nodes_evaluated) / _total_nodes_estimate, 0.0, 0.99)
+		progress_updated.emit(progress)
+		await Engine.get_main_loop().process_frame
+
+	# Make the move on the board (will be undone before returning)
+	var move_data := board.make_move(from, to)
+
+	if move_data.is_empty():
+		return -INF if is_maximizing else INF
+
+	# Terminal conditions
+	var current_side := side if is_maximizing else _opponent(side)
+	var opponent_side := _opponent(current_side)
+
+	var result: float
+	if board.is_in_check(opponent_side):
+		if _has_no_legal_moves(board, opponent_side):
+			# Checkmate!
+			result = INF if is_maximizing else -INF
+			board.undo_move(move_data)
+			return result
+	elif _has_no_legal_moves(board, opponent_side):
+		# Stalemate
+		board.undo_move(move_data)
+		return 0.0
+
+	if depth == 0:
+		result = _evaluate_board(board)
+		board.undo_move(move_data)
+		return result
+
+	if is_maximizing:
+		var max_eval := -INF
+		var moves := _get_all_moves(board, side)
+		for move in moves:
+			var eval: float = await _minimax_async(board, move["from"], move["to"],
+								 depth - 1, alpha, beta, false)
+			max_eval = max(max_eval, eval)
+			alpha = max(alpha, eval)
+			if beta <= alpha:
+				break  # Beta cutoff
+		board.undo_move(move_data)
+		return max_eval
+	else:
+		var min_eval := INF
+		var moves := _get_all_moves(board, _opponent(side))
+		for move in moves:
+			var eval: float = await _minimax_async(board, move["from"], move["to"],
+								 depth - 1, alpha, beta, true)
+			min_eval = min(min_eval, eval)
+			beta = min(beta, eval)
+			if beta <= alpha:
+				break  # Alpha cutoff
+		board.undo_move(move_data)
+		return min_eval
 
 
 func _get_best_placement(game_state: GameState) -> Dictionary:
