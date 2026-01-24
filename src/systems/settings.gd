@@ -21,7 +21,7 @@ var sfx_volume: float = 1.0
 var audio_theme: String = "classic"
 
 ## Visual settings
-var board_theme: String = "classic"
+var board_theme: String = "retrofuturistic"  # Default to new retrofuturistic theme
 var piece_set: String = "standard"  ## Options: "standard", "spatial"
 var show_coordinates: bool = true
 var show_legal_moves: bool = true
@@ -151,7 +151,7 @@ func reset_to_defaults() -> void:
 	master_volume = 1.0
 	music_volume = 0.8
 	sfx_volume = 1.0
-	board_theme = "classic"
+	board_theme = "retrofuturistic"
 	piece_set = "standard"
 	show_coordinates = true
 	show_legal_moves = true

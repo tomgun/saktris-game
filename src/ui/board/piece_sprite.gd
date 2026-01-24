@@ -2,6 +2,9 @@ class_name PieceSprite
 extends TextureRect
 ## Visual representation of a chess piece
 
+## Neon outline shader material for retrofuturistic theme
+const NeonOutlineMaterial := preload("res://assets/shaders/neon_outline_material.tres")
+
 ## Available piece sets and their paths
 const PIECE_SETS := {
 	"standard": "res://assets/sprites/pieces/",
@@ -74,6 +77,29 @@ func setup(p: Piece, pos: Vector2i, square_size: float) -> void:
 
 	# Allow mouse input for dragging
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Apply neon glow shader if theme requires it
+	_update_visual_theme()
+
+	# Connect to theme changes
+	if ThemeManager and not ThemeManager.visual_theme_changed.is_connected(_on_visual_theme_changed):
+		ThemeManager.visual_theme_changed.connect(_on_visual_theme_changed)
+
+
+func _on_visual_theme_changed(_theme: Resource) -> void:
+	_update_visual_theme()
+
+
+func _update_visual_theme() -> void:
+	## Apply or remove neon glow shader based on current visual theme
+	var theme := ThemeManager.get_current_visual_theme() if ThemeManager else null
+	if theme and theme.neon_glow_enabled:
+		# Create a unique material instance with theme's glow color
+		var neon_mat := NeonOutlineMaterial.duplicate() as ShaderMaterial
+		neon_mat.set_shader_parameter("glow_color", theme.neon_glow_color)
+		material = neon_mat
+	else:
+		material = null
 
 
 func _gui_input(event: InputEvent) -> void:

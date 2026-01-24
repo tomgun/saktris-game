@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="VisualTheme" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/systems/visual_theme.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+theme_name = "Retrofuturistic"
+theme_id = "retrofuturistic"
+light_square = Color(0.15, 0.17, 0.22, 1)
+dark_square = Color(0.04, 0.04, 0.08, 1)
+board_background = Color(0, 0, 0, 1)
+grid_line_color = Color(0, 0.8, 1, 0.6)
+grid_line_width = 2.0
+selection_highlight = Color(1, 0, 0.8, 0.4)
+last_move_highlight = Color(0, 1, 0.8, 0.3)
+legal_move_color = Color(0, 0.8, 1, 0.5)
+capture_color = Color(1, 0.2, 0.4, 0.5)
+placement_indicator_color = Color(0, 1, 0.8, 1)
+placement_glow_enabled = true
+placement_glow_color = Color(0, 1, 1, 0.8)
+neon_glow_enabled = true
+neon_glow_color = Color(0, 1, 1, 1)
+scanlines_enabled = true

@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8m3k5n7j2x4p"]
+[gd_scene load_steps=3 format=3 uid="uid://b8m3k5n7j2x4p"]
 
 [ext_resource type="Script" path="res://src/ui/board/board_view.gd" id="1_board"]
+[ext_resource type="Material" path="res://assets/shaders/scanlines_material.tres" id="2_scanlines"]
 
 [node name="BoardView" type="Control"]
 layout_mode = 3
@@ -58,6 +59,11 @@ unique_name_in_owner = true
 layout_mode = 0
 columns = 8
 
+[node name="GridLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+
 [node name="PiecesLayer" type="Control" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
 unique_name_in_owner = true
 layout_mode = 0
@@ -98,6 +104,19 @@ offset_bottom = 64.0
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
+
+[node name="ScanlinesOverlay" type="ColorRect" parent="MarginContainer/HBoxContainer/BoardWrapper/BoardContainer"]
+unique_name_in_owner = true
+visible = false
+material = ExtResource("2_scanlines")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
 
 [node name="SidePanel" type="VBoxContainer" parent="MarginContainer/HBoxContainer"]
 custom_minimum_size = Vector2(200, 0)

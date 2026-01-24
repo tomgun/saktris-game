@@ -6,9 +6,11 @@ const SquareScene := preload("res://src/ui/board/square.tscn")
 const PieceSpriteScene := preload("res://src/ui/board/piece_sprite.tscn")
 
 const BOARD_SIZE := 8
-const LEGAL_MOVE_DOT_COLOR := Color(0, 0, 0, 0.2)
-const LEGAL_CAPTURE_COLOR := Color(0.8, 0.2, 0.2, 0.3)
-const PLACEMENT_INDICATOR_COLOR := Color(0.3, 0.5, 0.9, 0.9)  # Blue arrow indicators
+
+# Fallback colors (used if no theme loaded)
+const DEFAULT_LEGAL_MOVE_COLOR := Color(0, 0, 0, 0.2)
+const DEFAULT_LEGAL_CAPTURE_COLOR := Color(0.8, 0.2, 0.2, 0.3)
+const DEFAULT_PLACEMENT_COLOR := Color(0.3, 0.5, 0.9, 0.9)
 
 var game_state: GameState
 var square_size: float = 64.0
@@ -57,10 +59,15 @@ var current_arrow: Node2D = null  # Arrow being drawn right now
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: GridContainer = %SquaresGrid
 @onready var board_background: ColorRect = $MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/BoardBackground
+@onready var grid_layer: Control = %GridLayer
 @onready var pieces_layer: Control = %PiecesLayer
 @onready var highlights_layer: Control = %HighlightsLayer
 @onready var arrows_layer: Control = %ArrowsLayer
 @onready var arrival_layer: Control = %ArrivalLayer
+@onready var scanlines_overlay: ColorRect = %ScanlinesOverlay
+
+# Grid lines for retrofuturistic theme
+var grid_lines: Array = []
 @onready var hovering_piece: TextureRect = %HoveringPiece
 @onready var ghost_piece: TextureRect = %GhostPiece
 @onready var black_arrival_area: Control = %BlackArrivalArea
@@ -142,8 +149,20 @@ func _ready() -> void:
 	long_press_timer.timeout.connect(_on_long_press_timeout)
 	add_child(long_press_timer)
 
+	# Connect to visual theme changes
+	if ThemeManager:
+		ThemeManager.visual_theme_changed.connect(_on_visual_theme_changed)
+	# Apply initial theme after layout is ready
+	call_deferred("_apply_visual_theme")
+
 
 func _input(event: InputEvent) -> void:
+	# Handle theme toggle (T key) - for development/testing
+	if event is InputEventKey and event.pressed and event.keycode == KEY_T:
+		_toggle_visual_theme()
+		get_viewport().set_input_as_handled()
+		return
+
 	# Handle touch input (mobile)
 	if event is InputEventScreenTouch:
 		_handle_touch_event(event)
@@ -255,6 +274,93 @@ func _create_board() -> void:
 			square.clicked.connect(_on_square_clicked)
 			row_array.append(square)
 		squares.append(row_array)
+
+
+func _on_visual_theme_changed(_theme: Resource) -> void:
+	_apply_visual_theme()
+
+
+func _toggle_visual_theme() -> void:
+	## Toggle between available visual themes (T key)
+	if not ThemeManager:
+		return
+	var current_id := ThemeManager.get_current_visual_theme_id()
+	var themes := ThemeManager.get_available_visual_themes()
+	if themes.size() < 2:
+		return
+
+	# Find next theme
+	var next_idx := 0
+	for i in range(themes.size()):
+		if themes[i].id == current_id:
+			next_idx = (i + 1) % themes.size()
+			break
+
+	ThemeManager.set_visual_theme(themes[next_idx].id)
+	print("Switched to visual theme: %s" % themes[next_idx].name)
+
+
+func _apply_visual_theme() -> void:
+	## Apply the current visual theme to the board
+	var theme: Resource = ThemeManager.get_current_visual_theme() if ThemeManager else null
+	if theme == null:
+		return
+
+	# Update board background
+	if board_background:
+		board_background.color = theme.board_background
+
+	# Update grid lines
+	_update_grid_lines(theme)
+
+	# Update scanlines overlay
+	_update_scanlines(theme)
+
+	# Refresh placement highlights if currently in placement mode
+	if game_state and game_state.must_place_piece():
+		_show_placement_highlights()
+
+
+func _update_grid_lines(theme: Resource) -> void:
+	## Draw or clear grid lines based on theme
+	# Clear existing grid lines
+	for line in grid_lines:
+		if is_instance_valid(line):
+			line.queue_free()
+	grid_lines.clear()
+
+	if grid_layer == null or theme.grid_line_width <= 0:
+		return
+
+	var grid_size := square_size * BOARD_SIZE
+
+	# Draw vertical and horizontal grid lines
+	for i in range(BOARD_SIZE + 1):
+		# Vertical line
+		var v_line := Line2D.new()
+		v_line.width = theme.grid_line_width
+		v_line.default_color = theme.grid_line_color
+		v_line.add_point(Vector2(i * square_size, 0))
+		v_line.add_point(Vector2(i * square_size, grid_size))
+		v_line.z_index = 5
+		grid_layer.add_child(v_line)
+		grid_lines.append(v_line)
+
+		# Horizontal line
+		var h_line := Line2D.new()
+		h_line.width = theme.grid_line_width
+		h_line.default_color = theme.grid_line_color
+		h_line.add_point(Vector2(0, i * square_size))
+		h_line.add_point(Vector2(grid_size, i * square_size))
+		h_line.z_index = 5
+		grid_layer.add_child(h_line)
+		grid_lines.append(h_line)
+
+
+func _update_scanlines(theme: Resource) -> void:
+	## Enable/disable scanlines effect based on theme
+	if scanlines_overlay:
+		scanlines_overlay.visible = theme.scanlines_enabled
 
 
 func _verify_piece_sync() -> void:
@@ -516,6 +622,10 @@ func _pixel_to_board(pixel_pos: Vector2) -> Vector2i:
 func _show_legal_moves() -> void:
 	_clear_legal_move_indicators()
 
+	var theme: Resource = ThemeManager.get_current_visual_theme() if ThemeManager else null
+	var move_color: Color = theme.legal_move_color if theme else DEFAULT_LEGAL_MOVE_COLOR
+	var capture_col: Color = theme.capture_color if theme else DEFAULT_LEGAL_CAPTURE_COLOR
+
 	for move_pos in legal_moves:
 		var indicator := ColorRect.new()
 		indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -523,12 +633,12 @@ func _show_legal_moves() -> void:
 		var target_piece := game_state.board.get_piece(move_pos)
 		if target_piece:
 			# Capture indicator - ring around square
-			indicator.color = LEGAL_CAPTURE_COLOR
+			indicator.color = capture_col
 			indicator.size = Vector2(square_size, square_size)
 		else:
 			# Move indicator - small dot in center
 			var dot_size := square_size * 0.3
-			indicator.color = LEGAL_MOVE_DOT_COLOR
+			indicator.color = move_color
 			indicator.size = Vector2(dot_size, dot_size)
 			indicator.pivot_offset = indicator.size / 2
 
@@ -996,7 +1106,7 @@ func _get_piece_texture(piece_type: int, side: int) -> Texture2D:
 
 
 func _show_placement_highlights() -> void:
-	## Show arrow indicators pointing at valid placement squares
+	## Show LED-style indicators around valid placement squares
 	_clear_placement_highlights()
 
 	if game_state == null or not game_state.must_place_piece():
@@ -1019,44 +1129,56 @@ func _show_placement_highlights() -> void:
 
 		# Check if placement is valid at this position
 		if game_state.board.can_place_piece_at(target_pos, arriving):
-			# Create arrow indicator pointing at the valid square
-			var arrow := _create_placement_arrow(col, is_white)
-			highlights_layer.add_child(arrow)
-			legal_move_indicators.append(arrow)
+			# Create LED indicator around the valid square
+			var indicator := _create_led_placement_indicator(col, is_white)
+			highlights_layer.add_child(indicator)
+			legal_move_indicators.append(indicator)
 
 
-func _create_placement_arrow(col: int, is_white: bool) -> Polygon2D:
-	## Create a small arrow indicator pointing at a placement column
-	var arrow := Polygon2D.new()
-	arrow.color = PLACEMENT_INDICATOR_COLOR
-	arrow.antialiased = true
+func _create_led_placement_indicator(col: int, is_white: bool) -> Control:
+	## Create a glowing LED-style rectangle outline around a placement square
+	var theme: Resource = ThemeManager.get_current_visual_theme() if ThemeManager else null
+	var indicator_color: Color = theme.placement_indicator_color if theme else DEFAULT_PLACEMENT_COLOR
+	var glow_col: Color = theme.placement_glow_color if theme else DEFAULT_PLACEMENT_COLOR
+	var glow_enabled: bool = theme.placement_glow_enabled if theme else true
 
-	# Arrow dimensions - small and compact
-	var arrow_width := square_size * 0.25
-	var arrow_height := square_size * 0.15
-	var center_x := col * square_size + square_size / 2
+	var indicator := Control.new()
+	var row := 0 if is_white else 7
+	var pos := _board_to_pixel(Vector2i(col, row))
 
-	# Position arrow completely outside the board, pointing inward
-	var base_y: float
-	var tip_y: float
-	var gap := square_size * 0.08  # Small gap from board edge
-	if is_white:
-		# White places on row 0 (bottom of display) - arrow points up from below
-		base_y = BOARD_SIZE * square_size + gap + arrow_height
-		tip_y = BOARD_SIZE * square_size + gap
-	else:
-		# Black places on row 7 (top of display) - arrow points down from above
-		base_y = -gap - arrow_height
-		tip_y = -gap
+	# Create glowing rectangle outline using Line2D
+	var outline := Line2D.new()
+	outline.width = 3.0
+	outline.default_color = indicator_color
+	outline.closed = true
+	outline.antialiased = true
+	outline.z_index = 10
 
-	# Create triangle pointing at the square
-	arrow.polygon = PackedVector2Array([
-		Vector2(center_x, tip_y),  # Tip
-		Vector2(center_x - arrow_width / 2, base_y),  # Left base
-		Vector2(center_x + arrow_width / 2, base_y),  # Right base
-	])
+	# Rectangle points with slight inset
+	var inset := 4.0
+	var rect_size := square_size - inset * 2
+	outline.add_point(Vector2(inset, inset))
+	outline.add_point(Vector2(inset + rect_size, inset))
+	outline.add_point(Vector2(inset + rect_size, inset + rect_size))
+	outline.add_point(Vector2(inset, inset + rect_size))
 
-	return arrow
+	indicator.add_child(outline)
+	indicator.position = pos
+	indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Add glow animation
+	if glow_enabled:
+		_add_glow_animation(outline, glow_col)
+
+	return indicator
+
+
+func _add_glow_animation(node: Line2D, glow_color: Color) -> void:
+	## Add a pulsing glow animation to a Line2D
+	node.default_color = glow_color
+	var tween := create_tween().set_loops()
+	tween.tween_property(node, "modulate:a", 0.5, 0.5).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(node, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
 
 
 func _update_hovering_piece() -> void:
@@ -1209,10 +1331,17 @@ func _on_resized() -> void:
 
 	# Position all layers
 	squares_grid.position = new_board_pos
+	if grid_layer:
+		grid_layer.position = new_board_pos
 	pieces_layer.position = new_board_pos
 	highlights_layer.position = new_board_pos
 	arrows_layer.position = new_board_pos
 	arrival_layer.position = new_board_pos
+
+	# Update grid lines for new size
+	var theme := ThemeManager.get_current_visual_theme() if ThemeManager else null
+	if theme:
+		_update_grid_lines(theme)
 
 	# Resize and position the background to match the board
 	if board_background:
