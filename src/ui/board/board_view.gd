@@ -167,6 +167,12 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# DEBUG: Log all mouse button events to diagnose web input issue
+	if event is InputEventMouseButton and event.pressed:
+		print("[INPUT] MouseButton pressed: button=%d pos=%s" % [event.button_index, event.position])
+	if event is InputEventScreenTouch:
+		print("[INPUT] ScreenTouch: pressed=%s pos=%s" % [event.pressed, event.position])
+
 	# Handle theme toggle (T key) - for development/testing
 	if event is InputEventKey and event.pressed and event.keycode == KEY_T:
 		_toggle_visual_theme()
@@ -211,6 +217,7 @@ func _input(event: InputEvent) -> void:
 		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn() and not is_remote_turn():
 			# Use actual square positions to determine column (more robust)
 			var col := _get_column_under_cursor()
+			print("[INPUT] Placement attempt: col=%d" % col)
 			if col >= 0 and col < BOARD_SIZE:
 				var is_white := game_state.current_player == Piece.Side.WHITE
 				var target_row := 0 if is_white else 7
@@ -468,6 +475,7 @@ func _board_to_pixel(board_pos: Vector2i) -> Vector2:
 
 
 func _on_square_clicked(board_pos: Vector2i) -> void:
+	print("[INPUT] Square clicked: %s, must_place=%s, is_ai=%s" % [board_pos, game_state.must_place_piece() if game_state else "null", game_state.is_ai_turn() if game_state else "null"])
 	if game_state == null:
 		return
 
@@ -1919,6 +1927,7 @@ func _on_ai_turn_started() -> void:
 
 
 func _on_new_game_pressed() -> void:
+	print("[INPUT] New Game button pressed!")
 	new_game_requested.emit()
 
 
