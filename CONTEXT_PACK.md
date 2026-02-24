@@ -31,9 +31,11 @@ Purpose: a compact, durable starting point for any agent/human so they don't nee
 - Game rules: `docs/CHESS_RULES.md`, `docs/SAKTRIS_RULES.md`
 
 ## How to run
-- Setup: Install Godot 4.3 from https://godotengine.org/download
+- Setup: Install Godot 4.3+ from https://godotengine.org/download
+- Godot path (macOS): `/Applications/Godot.app/Contents/MacOS/Godot`
 - Run: Open `project.godot` in Godot, press F5
-- Test: `godot --headless --script res://tests/run_tests.gd`
+- Test: `/Applications/Godot.app/Contents/MacOS/Godot --headless -s addons/gut/gut_cmdln.gd -gtest=res://tests/unit/test_file.gd`
+- Test all: `/Applications/Godot.app/Contents/MacOS/Godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/`
 
 ## Architecture snapshot
 - Components:

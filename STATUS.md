@@ -1,6 +1,8 @@
 # STATUS.md
 
-<!-- format: status-v0.1.0 -->
+<!-- format: status-v0.2.0 -->
+
+## Project Phase: building
 
 ## In Progress
 
@@ -12,6 +14,7 @@
 2. **Settings menu** - Configure arrival frequency, game modes, piece set toggle
 3. **Clock UI** - Display timer mode countdown in game
 4. **Game rules screen** - Viewable from main menu link
+5. **Move history export** - Copy movement history as text for debugging/sharing
 
 ## Backlog
 
@@ -20,14 +23,14 @@
 
 ---
 
-## Current State (2026-01-12)
+## Current State (2026-01-27)
 
 - Game is playable at: https://tomgun.github.io/saktris-game/
 - GitHub repo: https://github.com/tomgun/saktris-game (public)
 - Turn logic: Place a piece OR move a piece (not both)
 - Features working:
-  - Two-player and vs AI modes
-  - Piece arrival system (frequency-based)
+  - Two-player, vs AI, and Action Mode (real-time)
+  - Piece arrival system (frequency-based, auto-arrival in action mode)
   - Physics bump animations with collision sparks
   - Motion trails for long-distance slider moves
   - Hovering piece placement UX
@@ -43,6 +46,8 @@
   - Timer mode (chess clock with various time controls)
   - Multiple piece sets (standard flat, spatial 3D-style)
   - Mobile responsive layout with touch input support
+  - Triplet clear rule (3-in-a-row clears pieces)
+  - Action Mode with per-player cooldowns, auto-arrivals, bump mechanics
 
 ## Known Issues
 - See `spec/ISSUES.md` (2 open: I-0001 board size, I-0002 landscape rotation)
@@ -57,10 +62,12 @@
 - F-0010: Arrow drawing for move planning
 - F-0011: Special chess rules (castling, en passant, promotion)
 - F-0012: Physics bump mode (sparks + motion trails)
+- F-0013: Triplet clear rule (3-in-a-row)
 - F-0014: Bishop placement rule
 - F-0015: Sound FX & Theme System
 - F-0016: Timer Mode (chess clock)
 - F-0017: Draw Rules (50-move, repetition, insufficient material)
 - F-0018: Multiple Piece Sets (standard, spatial 3D)
 - F-0019: Mobile View (responsive layout + touch input)
+- F-0022: Action Mode (real-time gameplay with cooldowns)
 - Web deployment pipeline
