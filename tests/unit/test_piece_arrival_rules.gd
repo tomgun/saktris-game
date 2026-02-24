@@ -359,3 +359,102 @@ func test_queue_contains_all_16_pieces() -> void:
 	assert_eq(counts.get(Piece.Type.ROOK, 0), 2, "Should have 2 rooks")
 	assert_eq(counts.get(Piece.Type.QUEEN, 0), 1, "Should have 1 queen")
 	assert_eq(counts.get(Piece.Type.KING, 0), 1, "Should have 1 king")
+
+
+# =============================================================================
+# BLOCKED PLACEMENT (back row full)
+# =============================================================================
+
+func test_blocked_placement_piece_stays_in_queue() -> void:
+	## When back row is full, piece stays waiting until space available
+	## Decision: HN-0003 Option A - Skip arrival, piece stays in queue
+	var game := GameState.new()
+	game.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 1,
+		"game_mode": GameState.GameMode.TWO_PLAYER
+	})
+
+	# Fill White's entire back row (row 0) with pawns
+	for col in range(8):
+		game.board.set_piece(Vector2i(col, 0), Piece.new(Piece.Type.PAWN, Piece.Side.WHITE))
+
+	# Manually trigger piece arrival for White
+	game.arrival_manager.queue_next_piece(Piece.Side.WHITE)
+
+	# White has a piece waiting
+	var waiting_piece := game.arrival_manager.get_current_piece(Piece.Side.WHITE)
+	assert_not_null(waiting_piece, "Piece should be waiting to be placed")
+
+	# But cannot place it (back row full)
+	assert_false(game.can_place_piece(), "Cannot place when back row is full")
+	assert_false(game.must_place_piece(), "Not forced to place when no space")
+
+	# Piece is NOT lost - still waiting
+	var still_waiting := game.arrival_manager.get_current_piece(Piece.Side.WHITE)
+	assert_not_null(still_waiting, "Piece should still be waiting")
+	assert_eq(still_waiting.type, waiting_piece.type, "Same piece still waiting")
+
+
+func test_blocked_placement_can_still_move() -> void:
+	## When back row is full, player can move pieces instead
+	var game := GameState.new()
+	game.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 1,
+		"game_mode": GameState.GameMode.TWO_PLAYER
+	})
+
+	# Fill White's back row with pawns
+	for col in range(8):
+		game.board.set_piece(Vector2i(col, 0), Piece.new(Piece.Type.PAWN, Piece.Side.WHITE))
+
+	# Trigger piece arrival
+	game.arrival_manager.queue_next_piece(Piece.Side.WHITE)
+
+	# Cannot place
+	assert_false(game.can_place_piece(), "Cannot place when blocked")
+
+	# But can move an existing piece
+	var legal_moves := game.get_legal_moves_for_current_player()
+	assert_true(legal_moves.size() > 0, "Should have legal moves available")
+
+	# Move a pawn forward
+	var moved := game.try_move(Vector2i(4, 0), Vector2i(4, 1))
+	assert_true(moved, "Should be able to move when placement blocked")
+
+	# Turn should switch
+	assert_eq(game.current_player, Piece.Side.BLACK, "Turn should switch after move")
+
+
+func test_blocked_placement_piece_available_after_space_opens() -> void:
+	## After moving a piece, space opens and waiting piece can be placed
+	var game := GameState.new()
+	game.start_new_game({
+		"arrival_mode": PieceArrivalManager.Mode.FIXED,
+		"arrival_frequency": 1,
+		"game_mode": GameState.GameMode.TWO_PLAYER
+	})
+
+	# Fill White's back row
+	for col in range(8):
+		game.board.set_piece(Vector2i(col, 0), Piece.new(Piece.Type.PAWN, Piece.Side.WHITE))
+
+	# Give Black a pawn to move
+	game.board.set_piece(Vector2i(0, 7), Piece.new(Piece.Type.PAWN, Piece.Side.BLACK))
+
+	# Queue pieces for both
+	game.arrival_manager.queue_next_piece(Piece.Side.WHITE)
+	game.arrival_manager.queue_next_piece(Piece.Side.BLACK)
+
+	# White blocked, moves pawn forward to open space
+	assert_false(game.can_place_piece(), "White blocked initially")
+	game.try_move(Vector2i(4, 0), Vector2i(4, 1))
+
+	# Black's turn - place or move
+	game.try_place_piece(0)  # Black places
+
+	# White's turn again - piece still waiting, now has space
+	var waiting := game.arrival_manager.get_current_piece(Piece.Side.WHITE)
+	assert_not_null(waiting, "Piece should still be waiting from before")
+	assert_true(game.can_place_piece(), "Should be able to place now (column 4 is open)")

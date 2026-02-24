@@ -5,7 +5,7 @@ extends RefCounted
 const ChessAIClass := preload("res://src/game/ai.gd")
 
 enum Status { PLAYING, CHECK, CHECKMATE, STALEMATE, DRAW, TIMEOUT }
-enum GameMode { TWO_PLAYER, VS_AI }
+enum GameMode { TWO_PLAYER, VS_AI, ACTION }
 
 var board: Board
 var current_player: int = Piece.Side.WHITE
@@ -36,6 +36,22 @@ var history_index: int = -1
 
 ## Pending promotion state
 var pending_promotion_pos: Vector2i = Vector2i(-1, -1)
+var _promoting_side: int = -1  ## Side of the pawn being promoted (for action mode)
+
+## Action mode configuration
+var action_move_cooldown: float = 3.0      ## Seconds between moves per player
+var action_arrival_interval: float = 8.0   ## Seconds between piece arrivals
+var action_ai_reaction_min: float = 0.4    ## Minimum AI reaction time after cooldown ready
+var action_ai_reaction_max: float = 1.0    ## Maximum AI reaction time after cooldown ready
+
+## Action mode timers (counts down to 0)
+var _white_move_timer: float = 0.0
+var _black_move_timer: float = 0.0
+var _arrival_timer: float = 0.0
+var _next_arrival_side: int = Piece.Side.WHITE
+var _cached_arrival_column: int = -1  ## Cached target column for arrival indicator
+var _ai_reaction_timer: float = 0.0   ## AI waits this long after cooldown before moving
+var _ai_reaction_pending: bool = false  ## True when AI cooldown ready but waiting on reaction
 
 ## Signals
 signal turn_changed(player: int)
@@ -51,6 +67,12 @@ signal ai_progress(percent: float)
 signal triplet_clearing(triplet_positions: Array, victim_pos: Vector2i, direction: Vector2i)
 signal clock_time_updated(white_time: float, black_time: float)
 signal clock_low_time(side: int, seconds: float)
+
+## Action mode signals
+signal action_cooldown_updated(side: int, remaining: float, max_cooldown: float)
+signal action_arrival_warning(side: int, seconds: float)
+signal action_piece_auto_placed(side: int, column: int, piece: Piece)
+signal action_piece_bumped_off(position: Vector2i, piece: Piece)
 
 ## AI calculation state
 var _ai_calculating := false
@@ -101,6 +123,7 @@ func start_new_game(settings: Dictionary = {}) -> void:
 	move_history.clear()
 	history_index = -1
 	pending_promotion_pos = Vector2i(-1, -1)
+	_promoting_side = -1
 	draw_detector.reset()
 	draw_reason = DrawDetector.DrawReason.NONE
 
@@ -125,18 +148,286 @@ func start_new_game(settings: Dictionary = {}) -> void:
 	else:
 		chess_clock = null
 
-	# Initialize AI if playing against computer
-	if game_mode == GameMode.VS_AI:
+	# Initialize AI if playing against computer (VS_AI or ACTION with AI)
+	var use_ai: bool = settings.get("use_ai", game_mode == GameMode.VS_AI)
+	if use_ai or game_mode == GameMode.VS_AI:
 		ai_side = settings.get("ai_side", Piece.Side.BLACK)
 		var ai_difficulty: int = settings.get("ai_difficulty", ChessAIClass.Difficulty.MEDIUM)
 		ai = ChessAIClass.new(ai_side, ai_difficulty)
 	else:
 		ai = null
 
-	# Handle initial piece arrivals
-	_process_piece_arrival()
+	# Initialize action mode settings
+	if game_mode == GameMode.ACTION:
+		action_move_cooldown = settings.get("action_move_cooldown", 3.0)
+		action_arrival_interval = settings.get("action_arrival_interval", 8.0)
+		action_ai_reaction_min = settings.get("action_ai_reaction_min", 0.4)
+		action_ai_reaction_max = settings.get("action_ai_reaction_max", 1.0)
+		_white_move_timer = 0.0
+		_black_move_timer = 0.0
+		_arrival_timer = action_arrival_interval
+		_next_arrival_side = Piece.Side.WHITE
+		_ai_reaction_timer = 0.0
+		_ai_reaction_pending = false
+
+	# Handle initial piece arrivals (not for action mode - uses timer-based arrivals)
+	if game_mode != GameMode.ACTION:
+		_process_piece_arrival()
 
 	turn_changed.emit(current_player)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Action Mode (Real-time gameplay)
+# ─────────────────────────────────────────────────────────────────────────────
+
+func tick(delta: float) -> void:
+	## Update action mode timers - call this from game loop
+	if game_mode != GameMode.ACTION:
+		return
+	if not is_game_in_progress():
+		return
+	_tick_action_mode(delta)
+
+
+func _tick_action_mode(delta: float) -> void:
+	## Update move cooldowns and piece arrival timer
+	# Update move cooldowns
+	if _white_move_timer > 0:
+		_white_move_timer = maxf(0, _white_move_timer - delta)
+		action_cooldown_updated.emit(Piece.Side.WHITE, _white_move_timer, action_move_cooldown)
+	if _black_move_timer > 0:
+		_black_move_timer = maxf(0, _black_move_timer - delta)
+		action_cooldown_updated.emit(Piece.Side.BLACK, _black_move_timer, action_move_cooldown)
+
+	# Update arrival timer
+	_arrival_timer -= delta
+	if _arrival_timer <= 3.0 and _arrival_timer > 0:
+		action_arrival_warning.emit(_next_arrival_side, _arrival_timer)
+	if _arrival_timer <= 0:
+		_auto_place_piece()
+		_arrival_timer = action_arrival_interval
+		_cached_arrival_column = -1  # Invalidate cache after placement
+
+	# AI auto-move in action mode (with reaction delay to be fair to humans)
+	if ai != null and not _ai_calculating:
+		if can_player_move(ai_side):
+			if not _ai_reaction_pending:
+				# Cooldown just became ready - start reaction timer
+				_ai_reaction_pending = true
+				_ai_reaction_timer = randf_range(action_ai_reaction_min, action_ai_reaction_max)
+			else:
+				# Waiting on reaction timer
+				_ai_reaction_timer -= delta
+				if _ai_reaction_timer <= 0:
+					_ai_reaction_pending = false
+					_request_action_ai_move()
+
+
+func can_player_move(side: int) -> bool:
+	## Returns true if the player can make a move right now
+	if game_mode != GameMode.ACTION:
+		return side == current_player
+	var timer := _white_move_timer if side == Piece.Side.WHITE else _black_move_timer
+	return timer <= 0
+
+
+func _reset_move_cooldown(side: int) -> void:
+	## Reset the move cooldown for a side after they make a move
+	if side == Piece.Side.WHITE:
+		_white_move_timer = action_move_cooldown
+	else:
+		_black_move_timer = action_move_cooldown
+	action_cooldown_updated.emit(side, action_move_cooldown, action_move_cooldown)
+
+
+func _auto_place_piece() -> void:
+	## Automatically place the next piece for the current arrival side
+	## If back row is full, bumps pieces forward to make room
+	var side := _next_arrival_side
+
+	# Queue a piece if needed (only if there isn't one already waiting)
+	var piece := arrival_manager.get_current_piece(side)
+	if piece == null:
+		arrival_manager.queue_next_piece(side)
+		piece = arrival_manager.get_current_piece(side)
+	if piece == null:
+		# No more pieces available - alternate and try again next interval
+		_next_arrival_side = Piece.Side.BLACK if side == Piece.Side.WHITE else Piece.Side.WHITE
+		return
+
+	# Find valid placement column
+	var row := 0 if side == Piece.Side.WHITE else 7
+	var valid_cols: Array[int] = []
+	for col in range(Board.BOARD_SIZE):
+		if board.can_place_piece_at(Vector2i(col, row), piece):
+			valid_cols.append(col)
+
+	# Use the cached target column (same one shown in UI indicator)
+	var col := get_arrival_target_column()
+	if col < 0:
+		# Can't place anywhere - skip
+		arrival_manager.piece_placed(side)
+		_next_arrival_side = Piece.Side.BLACK if side == Piece.Side.WHITE else Piece.Side.WHITE
+		return
+
+	if valid_cols.is_empty():
+		# Back row is full - bump pieces to make room at the target column
+		_bump_column_forward(col, side)
+
+	# Place the piece
+	board.place_piece(Vector2i(col, row), piece)
+	arrival_manager.piece_placed(side)
+
+	action_piece_auto_placed.emit(side, col, piece)
+
+	# Alternate sides for next arrival
+	_next_arrival_side = Piece.Side.BLACK if side == Piece.Side.WHITE else Piece.Side.WHITE
+
+	# Check if placement causes checkmate (rare but possible)
+	_update_game_status()
+
+
+func _pick_bump_column(side: int, piece: Piece) -> int:
+	## Pick which column to bump when back row is full
+	## Prefers center columns that can accept the piece after bumping
+	var row := 0 if side == Piece.Side.WHITE else 7
+	var direction := 1 if side == Piece.Side.WHITE else -1
+
+	var candidates: Array = []
+	for col in range(Board.BOARD_SIZE):
+		# Check if this column can be bumped (at least one empty space or edge)
+		var can_bump := _can_bump_column(col, side)
+		if can_bump:
+			var dist := absf(col - 3.5)
+			candidates.append({"col": col, "dist": dist})
+
+	if candidates.is_empty():
+		return -1  # No column can be bumped
+
+	# Sort by distance from center
+	candidates.sort_custom(func(a, b): return a["dist"] < b["dist"])
+	return candidates[0]["col"]
+
+
+func _can_bump_column(col: int, side: int) -> bool:
+	## Check if a column can be bumped (pieces can move forward)
+	var row := 0 if side == Piece.Side.WHITE else 7
+	var direction := 1 if side == Piece.Side.WHITE else -1
+	var far_row := 7 if side == Piece.Side.WHITE else 0
+
+	# Column can always be bumped - worst case, far piece falls off
+	return true
+
+
+func _bump_column_forward(col: int, side: int) -> void:
+	## Bump all pieces in a column forward by one square
+	## If column is full, the furthest piece is captured (falls off)
+	var back_row := 0 if side == Piece.Side.WHITE else 7
+	var far_row := 7 if side == Piece.Side.WHITE else 0
+	var direction := 1 if side == Piece.Side.WHITE else -1
+
+	# Find all pieces in this column, from far end to back row
+	var pieces_to_move: Array = []
+	var current_row := far_row
+	while current_row != back_row + direction:
+		var pos := Vector2i(col, current_row)
+		var p := board.get_piece(pos)
+		if p != null:
+			pieces_to_move.append({"pos": pos, "piece": p})
+		current_row -= direction
+
+	if pieces_to_move.is_empty():
+		return
+
+	# Check if the furthest piece will fall off
+	var furthest: Dictionary = pieces_to_move[0]
+	var furthest_pos: Vector2i = furthest["pos"]
+	var furthest_new_row: int = furthest_pos.y + direction
+	if furthest_new_row < 0 or furthest_new_row > 7:
+		# Piece falls off the board - it's captured!
+		var captured_piece: Piece = furthest["piece"]
+		board.remove_piece(furthest_pos)
+		action_piece_bumped_off.emit(furthest_pos, captured_piece)
+
+		# Check if king was captured
+		if captured_piece.type == Piece.Type.KING:
+			var winner := Piece.Side.WHITE if captured_piece.side == Piece.Side.BLACK else Piece.Side.BLACK
+			status = Status.CHECKMATE
+			status_changed.emit(status)
+			game_over.emit(winner, "king bumped off")
+			return
+
+		pieces_to_move.remove_at(0)
+
+	# Move remaining pieces forward (from far to near to avoid collisions)
+	for item in pieces_to_move:
+		var old_pos: Vector2i = item["pos"]
+		var new_pos := Vector2i(col, old_pos.y + direction)
+		var p: Piece = item["piece"]
+		board.remove_piece(old_pos)
+		board.set_piece(new_pos, p)
+
+
+func get_arrival_target_position() -> Vector2i:
+	## Get the target position (column, row) for the next arrival (for UI display)
+	## Returns Vector2i(-1, -1) if no valid position
+	var col := get_arrival_target_column()
+	if col < 0:
+		return Vector2i(-1, -1)
+	var row := 0 if _next_arrival_side == Piece.Side.WHITE else 7
+	return Vector2i(col, row)
+
+
+func get_arrival_target_column() -> int:
+	## Get the cached target column for the next arrival (for UI display)
+	## Returns -1 if no valid column
+	if _cached_arrival_column >= 0:
+		return _cached_arrival_column
+
+	# Calculate and cache
+	var side := _next_arrival_side
+	var piece := arrival_manager.get_current_piece(side)
+	if piece == null:
+		var next_type := arrival_manager.get_next_piece_preview(side)
+		if next_type >= 0:
+			piece = Piece.new(next_type, side)
+
+	if piece == null:
+		return -1
+
+	var row := 0 if side == Piece.Side.WHITE else 7
+	var valid_cols: Array[int] = []
+	for col in range(Board.BOARD_SIZE):
+		if board.can_place_piece_at(Vector2i(col, row), piece):
+			valid_cols.append(col)
+
+	if valid_cols.is_empty():
+		# Row is full - pick a bump column instead
+		_cached_arrival_column = _pick_bump_column(side, piece)
+	else:
+		_cached_arrival_column = _pick_placement_column(valid_cols)
+
+	return _cached_arrival_column
+
+
+func _pick_placement_column(valid_cols: Array[int]) -> int:
+	## Pick a placement column, preferring center columns
+	if valid_cols.is_empty():
+		return 0
+
+	# Sort by distance from center (columns 3 and 4 are center)
+	var scored: Array = []
+	for col in valid_cols:
+		var dist := absf(col - 3.5)
+		scored.append({"col": col, "dist": dist})
+
+	scored.sort_custom(func(a, b): return a["dist"] < b["dist"])
+
+	# Pick from the closest 2-3 options randomly for some variation
+	var top_count := mini(3, scored.size())
+	var choice := randi() % top_count
+	return scored[choice]["col"]
 
 
 func try_move(from: Vector2i, to: Vector2i) -> bool:
@@ -149,8 +440,16 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 		return false
 
 	var piece := board.get_piece(from)
-	if piece == null or piece.side != current_player:
+	if piece == null:
 		return false
+
+	# Action mode: check cooldown instead of turn
+	if game_mode == GameMode.ACTION:
+		if not can_player_move(piece.side):
+			return false
+	else:
+		if piece.side != current_player:
+			return false
 
 	# Track piece type before move for draw detection
 	var was_pawn_move := (piece.type == Piece.Type.PAWN)
@@ -168,12 +467,24 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 	move_count += 1
 
 	# Record this player's move for arrival frequency tracking
-	arrival_manager.record_move(current_player)
+	var moving_side := piece.side
+	arrival_manager.record_move(moving_side)
 
 	# Check if promotion is needed
 	if result["needs_promotion"]:
+		# In action mode, pawns reaching the back row are captured (fall off the board)
+		# This prevents overpowered instant promotions in the chaotic fast-paced mode
+		if game_mode == GameMode.ACTION:
+			var captured_pawn := board.get_piece(to)
+			board.remove_piece(to)
+			action_piece_bumped_off.emit(to, captured_pawn)
+			_finish_turn(false, true, moving_side)
+			return true
+
+		# Normal mode: wait for player to choose promotion piece
 		pending_promotion_pos = to
-		promotion_needed.emit(to, current_player)
+		_promoting_side = moving_side
+		promotion_needed.emit(to, moving_side)
 		return true  # Move successful, but waiting for promotion choice
 
 	# Check if game already ended from king capture (signal handler sets this)
@@ -190,7 +501,7 @@ func try_move(from: Vector2i, to: Vector2i) -> bool:
 				return true
 
 	# Finish the turn (check game status and switch)
-	_finish_turn(was_capture, was_pawn_move)
+	_finish_turn(was_capture, was_pawn_move, moving_side)
 
 	return true
 
@@ -203,26 +514,32 @@ func complete_promotion(piece_type: int) -> bool:
 	if not board.promote_pawn(pending_promotion_pos, piece_type):
 		return false
 
+	var promoting_side := _promoting_side
 	pending_promotion_pos = Vector2i(-1, -1)
+	_promoting_side = -1
 
 	# Now finish the turn (promotion is always a pawn move)
-	_finish_turn(false, true)
+	_finish_turn(false, true, promoting_side)
 
 	return true
 
 
-func _finish_turn(was_capture: bool = false, was_pawn_move: bool = false) -> void:
+func _finish_turn(was_capture: bool = false, was_pawn_move: bool = false, moving_side: int = -1) -> void:
 	## Common turn-ending logic after a move (or promotion)
+	## moving_side: which side made the move (used in action mode)
 	# Update draw detection
 	draw_detector.on_move_made(was_capture, was_pawn_move)
 
 	# Check for game end conditions
 	_update_game_status()
 
+	# Determine winner based on game mode
+	var winner := current_player if game_mode != GameMode.ACTION else moving_side
+
 	if status == Status.CHECKMATE:
 		if chess_clock:
 			chess_clock.pause()
-		game_over.emit(current_player, "checkmate")
+		game_over.emit(winner, "checkmate")
 		return
 	elif status == Status.STALEMATE:
 		if chess_clock:
@@ -237,7 +554,14 @@ func _finish_turn(was_capture: bool = false, was_pawn_move: bool = false) -> voi
 		return
 
 	# Record position after the move for repetition tracking
-	draw_detector.record_position(board, _get_opponent(current_player))
+	var opponent := _get_opponent(moving_side) if moving_side >= 0 else _get_opponent(current_player)
+	draw_detector.record_position(board, opponent)
+
+	# Action mode: reset cooldown instead of switching turns
+	if game_mode == GameMode.ACTION:
+		if moving_side >= 0:
+			_reset_move_cooldown(moving_side)
+		return
 
 	# Switch chess clock (adds increment to player who just moved)
 	if chess_clock:
@@ -316,6 +640,78 @@ func _switch_turn() -> void:
 func is_ai_turn() -> bool:
 	## Returns true if it's the AI's turn to play
 	return ai != null and current_player == ai_side
+
+
+func _request_action_ai_move() -> void:
+	## Request AI to make a move in action mode (doesn't check turn)
+	if ai == null or _ai_calculating:
+		return
+
+	_ai_calculating = true
+	ai_thinking_started.emit()
+
+	# Calculate and execute AI move (simplified for action mode)
+	var move := _calculate_action_ai_move()
+
+	_ai_calculating = false
+	ai_thinking_finished.emit()
+
+	# Execute the move
+	if move.has("from") and move.has("to"):
+		var from: Vector2i = move["from"]
+		var to: Vector2i = move["to"]
+		if from != Vector2i(-1, -1):
+			var success := try_move(from, to)
+			if success:
+				ai_move_made.emit({"type": "move", "from": from, "to": to})
+
+
+func _calculate_action_ai_move() -> Dictionary:
+	## Quick AI move calculation for action mode (no threading for responsiveness)
+	var all_moves := []
+	for row in range(8):
+		for col in range(8):
+			var pos := Vector2i(col, row)
+			var piece := board.get_piece(pos)
+			if piece and piece.side == ai_side:
+				var piece_moves := board.get_legal_moves(pos)
+				for target in piece_moves:
+					all_moves.append({"from": pos, "to": target})
+
+	if all_moves.is_empty():
+		return {"from": Vector2i(-1, -1), "to": Vector2i(-1, -1)}
+
+	# Simple evaluation: prioritize captures, then center control
+	var best_move: Dictionary = all_moves[0]
+	var best_score := -INF
+
+	for move in all_moves:
+		var score := 0.0
+		var target_piece := board.get_piece(move["to"])
+		if target_piece:
+			# Capture bonus based on piece value
+			score += _get_piece_value(target_piece.type) * 10
+		# Center control bonus
+		var center_dist := absf(move["to"].x - 3.5) + absf(move["to"].y - 3.5)
+		score -= center_dist
+
+		if score > best_score:
+			best_score = score
+			best_move = move
+
+	return best_move
+
+
+func _get_piece_value(piece_type: int) -> float:
+	## Get relative piece value for AI evaluation
+	match piece_type:
+		Piece.Type.PAWN: return 1.0
+		Piece.Type.KNIGHT: return 3.0
+		Piece.Type.BISHOP: return 3.0
+		Piece.Type.ROOK: return 5.0
+		Piece.Type.QUEEN: return 9.0
+		Piece.Type.KING: return 100.0
+	return 0.0
 
 
 func request_ai_move() -> void:
@@ -499,23 +895,26 @@ func _process_piece_arrival() -> void:
 func _update_game_status() -> void:
 	var opponent := Piece.Side.BLACK if current_player == Piece.Side.WHITE else Piece.Side.WHITE
 
-	# Check for draw conditions first
-	# Note: In Saktris, insufficient material draw only applies when no more pieces can arrive
-	var pieces_can_still_arrive := arrival_manager.has_pieces_remaining(Piece.Side.WHITE) or \
-		arrival_manager.has_pieces_remaining(Piece.Side.BLACK) or \
-		arrival_manager.get_current_piece(Piece.Side.WHITE) != null or \
-		arrival_manager.get_current_piece(Piece.Side.BLACK) != null
+	# In Action mode, skip draw detection - game continues until king is captured
+	# (pieces keep arriving, so repetition/50-move draws don't apply)
+	if game_mode != GameMode.ACTION:
+		# Check for draw conditions first
+		# Note: In Saktris, insufficient material draw only applies when no more pieces can arrive
+		var pieces_can_still_arrive := arrival_manager.has_pieces_remaining(Piece.Side.WHITE) or \
+			arrival_manager.has_pieces_remaining(Piece.Side.BLACK) or \
+			arrival_manager.get_current_piece(Piece.Side.WHITE) != null or \
+			arrival_manager.get_current_piece(Piece.Side.BLACK) != null
 
-	draw_reason = draw_detector.check_all_draws(board, opponent)
+		draw_reason = draw_detector.check_all_draws(board, opponent)
 
-	# If it's insufficient material, only apply if no more pieces can arrive
-	if draw_reason == DrawDetector.DrawReason.INSUFFICIENT_MATERIAL and pieces_can_still_arrive:
-		draw_reason = DrawDetector.DrawReason.NONE
+		# If it's insufficient material, only apply if no more pieces can arrive
+		if draw_reason == DrawDetector.DrawReason.INSUFFICIENT_MATERIAL and pieces_can_still_arrive:
+			draw_reason = DrawDetector.DrawReason.NONE
 
-	if draw_reason != DrawDetector.DrawReason.NONE:
-		status = Status.DRAW
-		status_changed.emit(status)
-		return
+		if draw_reason != DrawDetector.DrawReason.NONE:
+			status = Status.DRAW
+			status_changed.emit(status)
+			return
 
 	# In Saktris, if opponent has pieces to place or remaining in queue,
 	# they might be able to escape stalemate by placing and then moving

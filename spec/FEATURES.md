@@ -524,3 +524,26 @@
   - Integration: todo
   - Acceptance: todo
 - Description: Browser-to-browser online multiplayer using WebRTC or WebSocket. Players can create/join game rooms and play against each other in real-time. Includes game state synchronization, move validation, and disconnect handling.
+
+## F-0022: ActionMode
+- Tags: [gameplay, realtime]
+- Layer: business-logic
+- Domain: gameplay
+- Priority: medium
+- Parent: none
+- Dependencies: F-0005, F-0008
+- Complexity: L
+- Status: shipped
+- Acceptance: spec/acceptance/F-0022.md
+- Verification:
+  - Accepted: no
+  - Accepted at:
+- Implementation:
+  - State: complete
+  - Code: src/game/game_state.gd, src/ui/board/board_view.gd, src/systems/settings.gd
+- Tests:
+  - Strategy: manual
+  - Unit: n/a
+  - Integration: n/a
+  - Acceptance: todo
+- Description: Real-time game mode where both players move independently on cooldowns. Pieces auto-arrive at timed intervals. Win by capturing king. Includes bump mechanic for full rows, AI reaction delay for fairness, and pawn promotion disabled (falls off board).

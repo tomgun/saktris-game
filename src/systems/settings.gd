@@ -1,5 +1,12 @@
 extends Node
 ## Global settings autoload - manages user preferences and game settings
+##
+## NOTE: Settings are persisted to user://settings.json and loaded on startup.
+## When changing default values in this file, the saved file will override them.
+## To apply new defaults, either:
+##   1. Delete the settings file: ~/Library/Application Support/Godot/app_userdata/Saktris/settings.json
+##   2. Or call Settings.reset_to_defaults() from code
+##   3. Or manually update the JSON file
 
 const SETTINGS_PATH := "user://settings.json"
 
@@ -10,9 +17,15 @@ var row_clear_enabled: bool = false
 var triplet_clear_enabled: bool = true
 var physics_bump_enabled: bool = true
 var piece_preview_count: int = 1  ## How many upcoming pieces to show
-var game_mode: int = 0  ## 0 = TWO_PLAYER, 1 = VS_AI
+var game_mode: int = 0  ## 0 = TWO_PLAYER, 1 = VS_AI, 2 = ACTION
 var ai_difficulty: int = 1  ## 0 = EASY, 1 = MEDIUM, 2 = HARD
 var ai_side: int = Piece.Side.BLACK  ## Which side the AI plays
+
+## Action mode settings
+var action_move_cooldown: float = 1.0      ## Seconds between moves per player
+var action_arrival_interval: float = 3.0   ## Seconds between piece auto-arrivals
+var action_ai_reaction_min: float = 0.4    ## Minimum AI reaction delay after cooldown ready
+var action_ai_reaction_max: float = 1.0    ## Maximum AI reaction delay after cooldown ready
 
 ## Audio settings
 var master_volume: float = 1.0
@@ -32,7 +45,10 @@ signal settings_changed
 
 
 func _ready() -> void:
-	load_settings()
+	# TODO: Enable persistence when settings UI is added
+	# For now, always use code defaults so developers can easily tweak values
+	# load_settings()
+	pass
 
 
 func load_settings() -> void:
@@ -61,6 +77,8 @@ func load_settings() -> void:
 	triplet_clear_enabled = data.get("triplet_clear_enabled", triplet_clear_enabled)
 	physics_bump_enabled = data.get("physics_bump_enabled", physics_bump_enabled)
 	piece_preview_count = data.get("piece_preview_count", piece_preview_count)
+	# Note: action_move_cooldown and action_arrival_interval are NOT loaded from save
+	# They always use code defaults so developers can easily tweak them
 
 	# Audio settings
 	master_volume = data.get("master_volume", master_volume)
@@ -82,6 +100,8 @@ func load_settings() -> void:
 
 func save_settings() -> void:
 	## Save settings to file
+	# Note: action_move_cooldown and action_arrival_interval are NOT saved
+	# They always use code defaults so developers can easily tweak them
 	var data := {
 		"arrival_frequency": arrival_frequency,
 		"arrival_mode": arrival_mode,
@@ -136,7 +156,11 @@ func get_game_settings() -> Dictionary:
 		"physics_bump_enabled": physics_bump_enabled,
 		"game_mode": game_mode,
 		"ai_difficulty": ai_difficulty,
-		"ai_side": ai_side
+		"ai_side": ai_side,
+		"action_move_cooldown": action_move_cooldown,
+		"action_arrival_interval": action_arrival_interval,
+		"action_ai_reaction_min": action_ai_reaction_min,
+		"action_ai_reaction_max": action_ai_reaction_max
 	}
 
 
@@ -148,6 +172,8 @@ func reset_to_defaults() -> void:
 	triplet_clear_enabled = true
 	physics_bump_enabled = true
 	piece_preview_count = 1
+	action_move_cooldown = 3.0
+	action_arrival_interval = 8.0
 	master_volume = 1.0
 	music_volume = 0.8
 	sfx_volume = 1.0

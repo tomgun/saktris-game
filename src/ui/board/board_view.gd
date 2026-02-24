@@ -56,6 +56,16 @@ var is_drawing_arrow: bool = false
 var planning_arrows: Array = []  # Persistent arrows drawn by player
 var current_arrow: Node2D = null  # Arrow being drawn right now
 
+# Action mode cooldown display
+var _white_cooldown_bar: ColorRect = null
+var _black_cooldown_bar: ColorRect = null
+var _white_cooldown_bg: ColorRect = null
+var _black_cooldown_bg: ColorRect = null
+var _arrival_timer_label: Label = null
+var _arrival_piece_preview: TextureRect = null
+var _arrival_column_highlight: ColorRect = null
+var _arrival_side_label: Label = null
+
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: GridContainer = %SquaresGrid
 @onready var board_background: ColorRect = $MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/BoardBackground
@@ -163,6 +173,12 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# Handle Action mode toggle (A key) - starts new Action mode game
+	if event is InputEventKey and event.pressed and event.keycode == KEY_A:
+		_start_action_mode_game()
+		get_viewport().set_input_as_handled()
+		return
+
 	# Handle touch input (mobile)
 	if event is InputEventScreenTouch:
 		_handle_touch_event(event)
@@ -214,8 +230,12 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	# Update action mode timers
+	if game_state:
+		game_state.tick(delta)
 	_update_physics(delta)
 	_update_hovering_piece()
+	_update_action_mode_display()
 
 
 func initialize(state: GameState) -> void:
@@ -235,6 +255,14 @@ func initialize(state: GameState) -> void:
 	game_state.board.piece_captured.connect(_on_piece_captured)
 	game_state.board.piece_placed.connect(_on_piece_placed)
 	game_state.move_executed.connect(_on_move_executed)
+
+	# Action mode signals
+	game_state.action_piece_auto_placed.connect(_on_action_piece_auto_placed)
+	game_state.action_piece_bumped_off.connect(_on_action_piece_bumped_off)
+
+	# Setup action mode UI if needed
+	if game_state.game_mode == GameState.GameMode.ACTION:
+		_setup_action_mode_ui()
 
 	# Wait for layout to complete before positioning
 	await get_tree().process_frame
@@ -443,12 +471,13 @@ func _on_square_clicked(board_pos: Vector2i) -> void:
 	if game_state == null:
 		return
 
-	# Ignore clicks during AI's turn or remote player's turn
-	if game_state.is_ai_turn() or is_remote_turn():
-		return
+	# Ignore clicks during AI's turn or remote player's turn (not in action mode)
+	if game_state.game_mode != GameState.GameMode.ACTION:
+		if game_state.is_ai_turn() or is_remote_turn():
+			return
 
-	# Check if we need to place an arriving piece first
-	if game_state.must_place_piece():
+	# Check if we need to place an arriving piece first (not in action mode - auto-placement)
+	if game_state.game_mode != GameState.GameMode.ACTION and game_state.must_place_piece():
 		# In arrival mode - try to place piece
 		if _try_place_arriving_piece(board_pos):
 			_clear_placement_highlights()
@@ -460,18 +489,34 @@ func _on_square_clicked(board_pos: Vector2i) -> void:
 	if selected_pos == Vector2i(-1, -1):
 		# No piece selected - try to select one
 		var piece := game_state.board.get_piece(board_pos)
-		if piece and piece.side == game_state.current_player:
-			_select_piece(board_pos)
+		if piece:
+			# In action mode, can select any piece whose side can move
+			# In normal mode, can only select current player's pieces
+			var can_select := false
+			if game_state.game_mode == GameState.GameMode.ACTION:
+				can_select = game_state.can_player_move(piece.side)
+			else:
+				can_select = piece.side == game_state.current_player
+			if can_select:
+				_select_piece(board_pos)
 	else:
 		# Piece already selected
 		if board_pos in legal_moves:
 			# Valid move - execute it
 			_execute_move(selected_pos, board_pos)
 		else:
-			# Check if clicking on another own piece
+			# Check if clicking on another piece that can be selected
 			var piece := game_state.board.get_piece(board_pos)
-			if piece and piece.side == game_state.current_player:
-				_select_piece(board_pos)
+			if piece:
+				var can_select := false
+				if game_state.game_mode == GameState.GameMode.ACTION:
+					can_select = game_state.can_player_move(piece.side)
+				else:
+					can_select = piece.side == game_state.current_player
+				if can_select:
+					_select_piece(board_pos)
+				else:
+					_deselect()
 			else:
 				_deselect()
 
@@ -524,19 +569,30 @@ func _execute_move(from: Vector2i, to: Vector2i) -> void:
 
 func _on_piece_drag_started(sprite: PieceSprite) -> void:
 	## Handle piece drag start
-	if game_state == null or game_state.is_ai_turn() or is_remote_turn():
+	if game_state == null:
 		sprite.cancel_drag()
 		return
 
-	# Can't drag during placement phase
-	if game_state.must_place_piece():
+	# Check if can interact (not AI turn, not remote turn - unless action mode)
+	if game_state.game_mode != GameState.GameMode.ACTION:
+		if game_state.is_ai_turn() or is_remote_turn():
+			sprite.cancel_drag()
+			return
+
+	# Can't drag during placement phase (except action mode uses auto-placement)
+	if game_state.game_mode != GameState.GameMode.ACTION and game_state.must_place_piece():
 		sprite.cancel_drag()
 		return
 
-	# Can only drag current player's pieces
-	if sprite.piece.side != game_state.current_player:
-		sprite.cancel_drag()
-		return
+	# Check if this piece's side can move
+	if game_state.game_mode == GameState.GameMode.ACTION:
+		if not game_state.can_player_move(sprite.piece.side):
+			sprite.cancel_drag()
+			return
+	else:
+		if sprite.piece.side != game_state.current_player:
+			sprite.cancel_drag()
+			return
 
 	dragging_sprite = sprite
 	# Track if this is a NEW selection (piece wasn't already selected)
@@ -582,15 +638,33 @@ func _on_piece_clicked(sprite: PieceSprite) -> void:
 	dragging_sprite = null
 	drag_was_new_selection = false
 
-	if game_state == null or game_state.is_ai_turn() or is_remote_turn():
+	if game_state == null:
 		return
 
-	# Can't select during placement phase
-	if game_state.must_place_piece():
+	# Check if can interact
+	if game_state.game_mode != GameState.GameMode.ACTION:
+		if game_state.is_ai_turn() or is_remote_turn():
+			return
+
+	# Can't select during placement phase (except action mode)
+	if game_state.game_mode != GameState.GameMode.ACTION and game_state.must_place_piece():
 		return
 
-	# Clicking on current player's piece - select/toggle
-	if sprite.piece.side == game_state.current_player:
+	# First, check if this is a capture target for currently selected piece
+	if selected_pos != Vector2i(-1, -1) and sprite.board_position in legal_moves:
+		# This is a valid capture - execute it
+		_execute_move(selected_pos, sprite.board_position)
+		return
+
+	# Check if this piece's side can move (for selection)
+	var can_move := false
+	if game_state.game_mode == GameState.GameMode.ACTION:
+		can_move = game_state.can_player_move(sprite.piece.side)
+	else:
+		can_move = sprite.piece.side == game_state.current_player
+
+	# Clicking on a piece that can move - select/toggle
+	if can_move:
 		if selected_pos == sprite.board_position:
 			# Only deselect if this piece was ALREADY selected before the click
 			# (not if we just selected it via drag_started in the same click)
@@ -599,12 +673,9 @@ func _on_piece_clicked(sprite: PieceSprite) -> void:
 			# else: keep it selected (was just selected by this click)
 		else:
 			_select_piece(sprite.board_position)
-	elif selected_pos != Vector2i(-1, -1):
-		# Clicking on opponent's piece while we have selection - check if it's a capture
-		if sprite.board_position in legal_moves:
-			_execute_move(selected_pos, sprite.board_position)
-		else:
-			_deselect()
+	else:
+		# Can't select this piece and it's not a capture target
+		_deselect()
 
 
 func _pixel_to_board(pixel_pos: Vector2) -> Vector2i:
@@ -1009,8 +1080,12 @@ func _update_turn_display() -> void:
 	var action := "place" if game_state.must_place_piece() else "move"
 	var text := "%s to %s" % [current, action]
 
+	# In action mode, both players can move
+	if game_state.game_mode == GameState.GameMode.ACTION:
+		text = "ACTION MODE - Both can move!"
+
 	# In online mode, show "Your turn" or "Opponent's turn"
-	if is_online_mode:
+	elif is_online_mode:
 		if is_my_turn():
 			text = "Your turn to %s" % action
 		else:
@@ -1019,13 +1094,19 @@ func _update_turn_display() -> void:
 	# Update desktop turn display
 	turn_label.text = text
 	if turn_indicator:
-		turn_indicator.color = Color.WHITE if is_white else Color.BLACK
+		if game_state.game_mode == GameState.GameMode.ACTION:
+			turn_indicator.color = Color(0.3, 0.9, 0.3)  # Green for action mode
+		else:
+			turn_indicator.color = Color.WHITE if is_white else Color.BLACK
 
 	# Update mobile turn display
 	if is_mobile:
 		mobile_turn_label.text = text
 		if mobile_turn_indicator:
-			mobile_turn_indicator.color = Color.WHITE if is_white else Color.BLACK
+			if game_state.game_mode == GameState.GameMode.ACTION:
+				mobile_turn_indicator.color = Color(0.3, 0.9, 0.3)
+			else:
+				mobile_turn_indicator.color = Color.WHITE if is_white else Color.BLACK
 		_update_mobile_queue_display()
 
 
@@ -1722,16 +1803,12 @@ func _start_arrow_drawing_at(screen_position: Vector2) -> void:
 
 
 func _get_input_position() -> Vector2:
-	## Get current input position relative to the grid (works for both mouse and touch)
-	var container_pos: Vector2
+	## Get current input position relative to board_container (works for both mouse and touch)
+	## Note: Do NOT subtract grid_offset here - _pixel_to_board() handles that
 	if touch_active:
-		container_pos = board_container.get_global_transform().affine_inverse() * last_touch_position
+		return board_container.get_global_transform().affine_inverse() * last_touch_position
 	else:
-		container_pos = board_container.get_local_mouse_position()
-
-	# Subtract grid offset to get position relative to the grid
-	var grid_offset := squares_grid.position if squares_grid else Vector2.ZERO
-	return container_pos - grid_offset
+		return board_container.get_local_mouse_position()
 
 
 func _get_column_under_cursor() -> int:
@@ -1766,8 +1843,12 @@ func _get_column_under_cursor() -> int:
 # Promotion dialog handling
 
 func _on_promotion_needed(pos: Vector2i, side: int) -> void:
-	# If it's AI's turn, auto-select Queen (best choice in almost all cases)
-	if game_state and game_state.is_ai_turn():
+	# If it's AI's pawn, auto-select Queen (best choice in almost all cases)
+	var is_ai_promotion := false
+	if game_state and game_state.ai != null and side == game_state.ai_side:
+		is_ai_promotion = true
+
+	if is_ai_promotion:
 		# Small delay so player can see the pawn reaching the rank
 		await get_tree().create_timer(0.2).timeout
 		game_state.complete_promotion(Piece.Type.QUEEN)
@@ -2090,6 +2171,322 @@ func _is_valid_arrow_target(from: Vector2i, to: Vector2i, piece: Piece) -> bool:
 			return false
 
 	return false
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Action Mode (Real-time gameplay)
+# ─────────────────────────────────────────────────────────────────────────────
+
+func _start_action_mode_game() -> void:
+	## Start a new Action mode game (A key shortcut)
+	var settings := Settings.get_game_settings()
+	settings["game_mode"] = GameState.GameMode.ACTION
+	settings["action_move_cooldown"] = Settings.action_move_cooldown
+	settings["action_arrival_interval"] = Settings.action_arrival_interval
+	settings["use_ai"] = true  # Enable AI opponent in action mode
+	settings["ai_side"] = Piece.Side.BLACK
+	settings["ai_difficulty"] = Settings.ai_difficulty
+
+	# Create new game state
+	var new_state := GameState.new()
+	new_state.start_new_game(settings)
+
+	# Re-initialize board view with new game
+	# First, disconnect old signals
+	if game_state:
+		_disconnect_game_state_signals()
+
+	# Clear UI
+	_deselect()
+	_clear_last_move_highlights()
+	_clear_planning_arrows()
+	_clear_action_mode_ui()
+
+	# Initialize with new state
+	initialize(new_state)
+
+	# Show action mode status
+	status_label.text = "ACTION MODE! Press A to restart"
+	if is_mobile and mobile_status_label:
+		mobile_status_label.text = "ACTION MODE!"
+
+
+func _disconnect_game_state_signals() -> void:
+	## Disconnect signals from current game state
+	if game_state == null:
+		return
+	if game_state.turn_changed.is_connected(_on_turn_changed):
+		game_state.turn_changed.disconnect(_on_turn_changed)
+	if game_state.status_changed.is_connected(_on_status_changed):
+		game_state.status_changed.disconnect(_on_status_changed)
+	if game_state.game_over.is_connected(_on_game_over):
+		game_state.game_over.disconnect(_on_game_over)
+	if game_state.promotion_needed.is_connected(_on_promotion_needed):
+		game_state.promotion_needed.disconnect(_on_promotion_needed)
+	if game_state.ai_turn_started.is_connected(_on_ai_turn_started):
+		game_state.ai_turn_started.disconnect(_on_ai_turn_started)
+	if game_state.ai_thinking_started.is_connected(_on_ai_thinking_started):
+		game_state.ai_thinking_started.disconnect(_on_ai_thinking_started)
+	if game_state.ai_thinking_finished.is_connected(_on_ai_thinking_finished):
+		game_state.ai_thinking_finished.disconnect(_on_ai_thinking_finished)
+	if game_state.ai_progress.is_connected(_on_ai_progress):
+		game_state.ai_progress.disconnect(_on_ai_progress)
+	if game_state.triplet_clearing.is_connected(_on_triplet_clearing):
+		game_state.triplet_clearing.disconnect(_on_triplet_clearing)
+	if game_state.board.piece_moved.is_connected(_on_piece_moved):
+		game_state.board.piece_moved.disconnect(_on_piece_moved)
+	if game_state.board.piece_captured.is_connected(_on_piece_captured):
+		game_state.board.piece_captured.disconnect(_on_piece_captured)
+	if game_state.board.piece_placed.is_connected(_on_piece_placed):
+		game_state.board.piece_placed.disconnect(_on_piece_placed)
+	if game_state.move_executed.is_connected(_on_move_executed):
+		game_state.move_executed.disconnect(_on_move_executed)
+	if game_state.action_piece_auto_placed.is_connected(_on_action_piece_auto_placed):
+		game_state.action_piece_auto_placed.disconnect(_on_action_piece_auto_placed)
+	if game_state.action_piece_bumped_off.is_connected(_on_action_piece_bumped_off):
+		game_state.action_piece_bumped_off.disconnect(_on_action_piece_bumped_off)
+
+
+func _setup_action_mode_ui() -> void:
+	## Setup cooldown bar UI for action mode
+	_clear_action_mode_ui()
+
+	var bar_height := 8.0
+	var bar_width := square_size * BOARD_SIZE
+
+	# White cooldown bar (bottom)
+	_white_cooldown_bg = ColorRect.new()
+	_white_cooldown_bg.color = Color(0.2, 0.2, 0.2, 0.8)
+	_white_cooldown_bg.size = Vector2(bar_width, bar_height)
+	_white_cooldown_bg.position = Vector2(0, square_size * BOARD_SIZE + 2)
+	highlights_layer.add_child(_white_cooldown_bg)
+
+	_white_cooldown_bar = ColorRect.new()
+	_white_cooldown_bar.color = Color(0.9, 0.9, 0.9, 0.9)
+	_white_cooldown_bar.size = Vector2(0, bar_height)
+	_white_cooldown_bar.position = _white_cooldown_bg.position
+	highlights_layer.add_child(_white_cooldown_bar)
+
+	# Black cooldown bar (top)
+	_black_cooldown_bg = ColorRect.new()
+	_black_cooldown_bg.color = Color(0.2, 0.2, 0.2, 0.8)
+	_black_cooldown_bg.size = Vector2(bar_width, bar_height)
+	_black_cooldown_bg.position = Vector2(0, -bar_height - 2)
+	highlights_layer.add_child(_black_cooldown_bg)
+
+	_black_cooldown_bar = ColorRect.new()
+	_black_cooldown_bar.color = Color(0.3, 0.3, 0.3, 0.9)
+	_black_cooldown_bar.size = Vector2(0, bar_height)
+	_black_cooldown_bar.position = _black_cooldown_bg.position
+	highlights_layer.add_child(_black_cooldown_bar)
+
+	# Arrival timer and preview (center top of board)
+	_arrival_timer_label = Label.new()
+	_arrival_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_arrival_timer_label.add_theme_font_size_override("font_size", 20)
+	_arrival_timer_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
+	_arrival_timer_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	_arrival_timer_label.add_theme_constant_override("shadow_offset_x", 2)
+	_arrival_timer_label.add_theme_constant_override("shadow_offset_y", 2)
+	_arrival_timer_label.position = Vector2(bar_width / 2 - 60, -bar_height - 45)
+	_arrival_timer_label.size = Vector2(120, 30)
+	highlights_layer.add_child(_arrival_timer_label)
+
+	# Side indicator (whose piece is coming)
+	_arrival_side_label = Label.new()
+	_arrival_side_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_arrival_side_label.add_theme_font_size_override("font_size", 14)
+	_arrival_side_label.position = Vector2(bar_width / 2 - 40, -bar_height - 65)
+	_arrival_side_label.size = Vector2(80, 20)
+	highlights_layer.add_child(_arrival_side_label)
+
+	# Piece preview
+	_arrival_piece_preview = TextureRect.new()
+	_arrival_piece_preview.custom_minimum_size = Vector2(40, 40)
+	_arrival_piece_preview.size = Vector2(40, 40)
+	_arrival_piece_preview.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	_arrival_piece_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_arrival_piece_preview.position = Vector2(bar_width / 2 + 65, -bar_height - 55)
+	highlights_layer.add_child(_arrival_piece_preview)
+
+	# Target square highlight (shows where piece will land)
+	_arrival_column_highlight = ColorRect.new()
+	_arrival_column_highlight.color = Color(1, 0.8, 0.2, 0.3)
+	_arrival_column_highlight.size = Vector2(square_size, square_size)
+	_arrival_column_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_arrival_column_highlight.visible = false
+	highlights_layer.add_child(_arrival_column_highlight)
+
+
+func _clear_action_mode_ui() -> void:
+	## Remove action mode UI elements
+	if _white_cooldown_bar:
+		_white_cooldown_bar.queue_free()
+		_white_cooldown_bar = null
+	if _black_cooldown_bar:
+		_black_cooldown_bar.queue_free()
+		_black_cooldown_bar = null
+	if _white_cooldown_bg:
+		_white_cooldown_bg.queue_free()
+		_white_cooldown_bg = null
+	if _black_cooldown_bg:
+		_black_cooldown_bg.queue_free()
+		_black_cooldown_bg = null
+	if _arrival_timer_label:
+		_arrival_timer_label.queue_free()
+		_arrival_timer_label = null
+	if _arrival_piece_preview:
+		_arrival_piece_preview.queue_free()
+		_arrival_piece_preview = null
+	if _arrival_column_highlight:
+		_arrival_column_highlight.queue_free()
+		_arrival_column_highlight = null
+	if _arrival_side_label:
+		_arrival_side_label.queue_free()
+		_arrival_side_label = null
+
+
+func _update_action_mode_display() -> void:
+	## Update cooldown bars and arrival indicator in action mode
+	if game_state == null or game_state.game_mode != GameState.GameMode.ACTION:
+		return
+
+	var bar_width := square_size * BOARD_SIZE
+
+	# Update white cooldown bar
+	if _white_cooldown_bar and _white_cooldown_bg:
+		var white_timer := game_state._white_move_timer
+		var max_cooldown := game_state.action_move_cooldown
+		var fill_ratio := white_timer / max_cooldown if max_cooldown > 0 else 0.0
+		_white_cooldown_bar.size.x = bar_width * (1.0 - fill_ratio)
+
+		# Change color when ready
+		if white_timer <= 0:
+			_white_cooldown_bar.color = Color(0.3, 0.9, 0.3, 0.9)  # Green = ready
+		else:
+			_white_cooldown_bar.color = Color(0.9, 0.9, 0.9, 0.9)  # White = cooling down
+
+	# Update black cooldown bar
+	if _black_cooldown_bar and _black_cooldown_bg:
+		var black_timer := game_state._black_move_timer
+		var max_cooldown := game_state.action_move_cooldown
+		var fill_ratio := black_timer / max_cooldown if max_cooldown > 0 else 0.0
+		_black_cooldown_bar.size.x = bar_width * (1.0 - fill_ratio)
+
+		# Change color when ready
+		if black_timer <= 0:
+			_black_cooldown_bar.color = Color(0.3, 0.9, 0.3, 0.9)  # Green = ready
+		else:
+			_black_cooldown_bar.color = Color(0.3, 0.3, 0.3, 0.9)  # Dark = cooling down
+
+	# Update arrival indicator
+	_update_arrival_indicator()
+
+
+func _update_arrival_indicator() -> void:
+	## Update the arrival indicator showing next piece, countdown, and target column
+	if game_state == null:
+		return
+
+	var arrival_timer := game_state._arrival_timer
+	var next_side := game_state._next_arrival_side
+	var side_name := "White" if next_side == Piece.Side.WHITE else "Black"
+
+	# Update timer label
+	if _arrival_timer_label:
+		_arrival_timer_label.text = "%.1fs" % maxf(0, arrival_timer)
+		# Pulse color when close to arrival
+		if arrival_timer <= 3.0:
+			var pulse := (sin(Time.get_ticks_msec() / 150.0) + 1.0) / 2.0
+			_arrival_timer_label.add_theme_color_override("font_color", Color(1, 0.3 + pulse * 0.6, 0.2))
+		else:
+			_arrival_timer_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
+
+	# Update side label
+	if _arrival_side_label:
+		_arrival_side_label.text = side_name
+		_arrival_side_label.add_theme_color_override("font_color", Color.WHITE if next_side == Piece.Side.WHITE else Color(0.4, 0.4, 0.4))
+
+	# Get the next piece that will arrive
+	# First check if there's a current piece waiting, otherwise look at queue
+	var next_piece := game_state.arrival_manager.get_current_piece(next_side)
+	if next_piece == null:
+		# Check the queue for what's coming
+		var next_type := game_state.arrival_manager.get_next_piece_preview(next_side)
+		if next_type >= 0:
+			next_piece = Piece.new(next_type, next_side)
+
+	# Update piece preview
+	if _arrival_piece_preview:
+		if next_piece:
+			_arrival_piece_preview.texture = _get_piece_texture(next_piece.type, next_side)
+			_arrival_piece_preview.visible = true
+		else:
+			_arrival_piece_preview.visible = false
+
+	# Update target square highlight (show where piece will land)
+	if _arrival_column_highlight:
+		if next_piece and arrival_timer <= 5.0:
+			# Get cached target position (doesn't flicker)
+			var target_pos := game_state.get_arrival_target_position()
+
+			if target_pos.x >= 0:
+				# Convert board position to pixel position
+				var pixel_pos := _board_to_pixel(target_pos)
+				_arrival_column_highlight.position = pixel_pos
+				_arrival_column_highlight.size = Vector2(square_size, square_size)
+				_arrival_column_highlight.visible = true
+
+				# Pulse opacity based on time remaining
+				var urgency := 1.0 - (arrival_timer / 5.0)
+				var pulse := (sin(Time.get_ticks_msec() / 200.0) + 1.0) / 2.0
+				_arrival_column_highlight.color = Color(1, 0.8, 0.2, 0.2 + urgency * 0.4 * pulse)
+			else:
+				_arrival_column_highlight.visible = false
+		else:
+			_arrival_column_highlight.visible = false
+
+
+func _on_action_piece_auto_placed(side: int, column: int, piece: Piece) -> void:
+	## Handle auto-placed piece in action mode
+	# The piece_placed signal will handle creating the sprite
+	# Just play a sound or show visual feedback
+	if AudioManager:
+		AudioManager.play_place()
+
+	# Brief flash at the placement location
+	var row := 0 if side == Piece.Side.WHITE else 7
+	var pos := Vector2i(column, row)
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 0, 0.5)  # Yellow flash
+	flash.size = Vector2(square_size, square_size)
+	flash.position = _board_to_pixel(pos)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	highlights_layer.add_child(flash)
+
+	# Fade out
+	var tween := create_tween()
+	tween.tween_property(flash, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(flash.queue_free)
+
+	# Refresh pieces to show any bumped positions
+	call_deferred("_refresh_pieces")
+
+
+func _on_action_piece_bumped_off(pos: Vector2i, piece: Piece) -> void:
+	## Handle a piece being bumped off the board
+	if AudioManager:
+		AudioManager.play_capture()
+
+	# Get the sprite if it exists and animate it flying off
+	if pos in piece_sprites:
+		var sprite: PieceSprite = piece_sprites[pos]
+		piece_sprites.erase(pos)
+
+		# Determine direction to fly (off the edge it was pushed toward)
+		var direction := Vector2(0, -1) if piece.side == Piece.Side.WHITE else Vector2(0, 1)
+		sprite.start_bump(direction, square_size * 8.0)
+		bumping_pieces.append(sprite)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
