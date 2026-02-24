@@ -14,9 +14,10 @@
 
 ```bash
 # Read these silently (don't dump to user)
-cat STATUS.md 2>/dev/null || cat PRODUCT.md 2>/dev/null
+cat STATUS.md 2>/dev/null
 cat HUMAN_NEEDED.md 2>/dev/null | head -20
-ls WIP.md 2>/dev/null
+ls .agentic/WIP.md 2>/dev/null
+cat .agentic/AGENTS_ACTIVE.md 2>/dev/null  # Check for other active agents!
 ```
 
 ## Step 2: Greet User with Recap
@@ -27,7 +28,7 @@ ls WIP.md 2>/dev/null
 👋 Welcome back! Here's where we are:
 
 **Last session**: [Summary from JOURNAL.md or STATUS.md]
-**Current focus**: [From STATUS.md "Current focus" or PRODUCT.md]
+**Current focus**: [From STATUS.md "Current focus"]
 **Progress**: [What's done, what's in progress]
 
 **Next steps** (pick one or tell me something else):
@@ -40,11 +41,11 @@ What would you like to work on?
 
 ## Step 3: Handle Special Cases
 
-**If WIP.md exists** (interrupted work):
+**If .agentic/WIP.md exists** (interrupted work):
 ```
 ⚠️ Previous work was interrupted!
-Feature: [from WIP.md]
-Files changed: [from WIP.md or git diff]
+Feature: [from .agentic/WIP.md]
+Files changed: [from .agentic/WIP.md or git diff]
 
 Options:
 1. Continue from checkpoint
@@ -67,6 +68,24 @@ I'll quickly apply the updates, then we'll continue.
 [Handle upgrade, then return to normal greeting]
 ```
 
+**If .agentic/AGENTS_ACTIVE.md shows other agents working**:
+```
+👥 Another agent is currently active!
+
+Agent 1 (Claude - Main Window):
+- Working on: [their task]
+- Files: [their files]
+
+To avoid conflicts, I should work on different files/features.
+What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTIVE.md)
+```
+
+**CRITICAL - Multi-agent coordination:**
+1. **Read .agentic/AGENTS_ACTIVE.md** to see who else is working
+2. **Register yourself** by adding your entry
+3. **Avoid their files** - pick different features/files
+4. **Update when done** - remove your entry or mark complete
+
 ---
 
 **Why proactive**: User shouldn't have to ask "where were we?" - you should tell them automatically.
@@ -84,7 +103,7 @@ I'll quickly apply the updates, then we'll continue.
 
 **If interrupted work detected (exit code 1):**
 - ⚠️ Previous session stopped mid-task (tokens out, crash, or abrupt close)
-- WIP.md shows what was in progress
+- .agentic/WIP.md shows what was in progress
 - Git diff shows uncommitted changes
 - **STOP and review before continuing!**
 
@@ -219,8 +238,8 @@ I'll quickly apply the updates, then we'll continue.
 
 ## Proactive Context Setting (Make Collaboration Fluent)
 
-- [ ] **Check for planned work** (Core profile: `PRODUCT.md`, Core+PM: `STATUS.md`)
-  - Read "What's next" or "Next up" section
+- [ ] **Check for planned work** (from `STATUS.md`)
+  - Read "Next up" or "Next immediate step" section
   - Identify 2-3 highest priority items
   - **Present options to user**: "I see we have [A], [B], [C] planned. Which should we tackle first?"
 
@@ -241,7 +260,7 @@ I'll quickly apply the updates, then we'll continue.
 After completing checklist, provide structured summary:
 
 **Context Summary:**
-- Current focus: [from STATUS.md or PRODUCT.md]
+- Current focus: [from STATUS.md]
 - Recent progress: [1-2 sentences from JOURNAL.md]
 - Active blockers: [list from HUMAN_NEEDED.md or "None"]
 

@@ -1,0 +1,29 @@
+# Context Manifest: Spec Update Agent
+# Updates FEATURES.md and acceptance criteria after implementation
+
+role: spec-update-agent
+token_budget: 3000
+description: Update specs after feature completion
+
+required:
+  - spec/acceptance/{feature_id}.md       # Current acceptance criteria
+  - spec/FEATURES.md[{feature_id}]        # Feature entry to update
+  - .agentic/agents/shared/guidelines/anti-hallucination.md
+
+optional:
+  - CHANGELOG.md[unreleased]                # If updating changelog
+
+exclude:
+  - JOURNAL.md
+  - STATUS.md
+  - src/
+  - tests/
+  - docs/research/
+  - .agentic/workflows/
+
+variables:
+  - feature_id
+
+section_markers:
+  CHANGELOG.md:
+    unreleased: "## [Unreleased]"

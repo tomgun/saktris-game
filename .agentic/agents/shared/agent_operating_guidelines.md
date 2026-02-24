@@ -1,5 +1,13 @@
 # Agent Operating Guidelines (All Tools)
 
+> **📚 REFERENCE MATERIAL (v0.12.0)**
+>
+> This document contains detailed rationale and edge cases. For daily use, read:
+> - **Quick Start**: `.agentic/agents/shared/AGENT_QUICK_START.md` (~70 lines)
+> - **Verification**: Run `doctor.sh` - gates enforce quality automatically
+>
+> Only consult this document when you need detailed context or are troubleshooting.
+
 **For**: Cursor, Copilot, Claude, Gemini, Codex, or ANY AI assistant.
 
 ---
@@ -11,9 +19,10 @@
 ## 1. Silently Read Context
 
 ```bash
-cat STATUS.md 2>/dev/null || cat PRODUCT.md 2>/dev/null
+cat STATUS.md 2>/dev/null
 cat HUMAN_NEEDED.md 2>/dev/null | head -20
-ls WIP.md 2>/dev/null
+ls .agentic/WIP.md 2>/dev/null
+cat .agentic/AGENTS_ACTIVE.md 2>/dev/null  # Check for other active agents!
 ```
 
 ## 2. Greet User with Recap (AUTOMATIC!)
@@ -24,7 +33,7 @@ ls WIP.md 2>/dev/null
 👋 Welcome back! Here's where we are:
 
 **Last session**: [From JOURNAL.md or STATUS.md]
-**Current focus**: [From STATUS.md or PRODUCT.md]
+**Current focus**: [From STATUS.md]
 
 **Next steps** (pick one or tell me something else):
 1. [Next planned task]
@@ -38,9 +47,12 @@ What would you like to work on?
 
 | Situation | What to Say |
 |-----------|-------------|
-| **WIP.md exists** | "⚠️ Previous work interrupted! Continue, review, or rollback?" |
+| **.agentic/AGENTS_ACTIVE.md has entries** | "👥 Another agent is working on [X]. I'll register myself and work on different files." |
+| **.agentic/WIP.md exists** | "⚠️ Previous work interrupted! Continue, review, or rollback?" |
 | **HUMAN_NEEDED has items** | "📋 [N] items need your input" |
 | **Upgrade pending** | "🔄 Framework upgraded, applying updates..." |
+
+**Multi-agent coordination**: If other agents are active, register yourself in .agentic/AGENTS_ACTIVE.md and avoid their files.
 
 **Why proactive**: User shouldn't have to remember. You help immediately.
 
@@ -53,9 +65,12 @@ What would you like to work on?
 | Trigger Words | YOUR FIRST ACTION |
 |---------------|-------------------|
 | "build", "implement", "add", "create", "let's do", "make" | **🛑 STOP → Read `feature_start.md` → Check acceptance criteria EXIST** |
+| "implement entire", "full system", "complete feature", "build everything" | **🛑 STOP → TOO BIG. Break into 3-5 smaller tasks. Max 5-10 files.** |
 | "fix", "bug", "issue" | **🛑 STOP → Check spec/ISSUES.md → Write failing test FIRST** |
 | "commit", "push" | **🛑 STOP → Read `before_commit.md` → All gates must pass** |
 | "done", "complete", "finished" | **🛑 STOP → Read `feature_complete.md` → Verify ALL items** |
+| "update journal", "log this", "add entry" | **🛑 STOP → Use `bash .agentic/tools/journal.sh` NOT file edit** |
+| "what is this project", "tell me about", "explain the codebase" | **→ Read CONTEXT_PACK.md FIRST, then answer** |
 
 ## 🚫 BLOCKING GATE (Non-Negotiable)
 
@@ -72,6 +87,39 @@ FEATURE REQUEST DETECTED?
 
 ---
 
+## 🔄 Iterative Requirements Gathering
+
+**NEVER assume you have enough information.** When gathering requirements, creating acceptance criteria, or envisioning a project:
+
+### After Each Round of Questions, Offer Options:
+
+```
+I've gathered some initial context. What would you like to do?
+
+a) ✅ **Finalize** - This is enough, let's proceed with what we have
+b) 🔍 **4 more questions** - Dive deeper into specific areas
+c) 📝 **Give more context** - You have more to share
+d) 💬 **Free input** - Tell me anything else relevant
+```
+
+### Guidelines for Follow-up Questions:
+
+- **Go deeper**: If user mentioned "authentication", ask about OAuth vs JWT, session handling, refresh tokens
+- **Go broader**: If focused on one area, ask about adjacent concerns (security, performance, UX)
+- **Challenge assumptions**: "You mentioned X - have you considered Y as an alternative?"
+- **Uncover edge cases**: "What happens when Z fails?" or "How should this behave for new users?"
+
+### Why This Matters:
+
+- Users often don't know what they don't know
+- Early clarification prevents expensive rework
+- Better acceptance criteria = better implementation
+- Shows thoroughness and builds trust
+
+**Default behavior**: Always offer to continue gathering context until user explicitly says "finalize" or equivalent.
+
+---
+
 ## Token Efficiency: DELEGATE Tasks
 
 | Task | Spawn Agent | Model Tier | Savings |
@@ -84,6 +132,21 @@ FEATURE REQUEST DETECTED?
 
 **Context handoff**: Pass ONLY feature ID, criteria, 3-5 files, STACK.md.
 **DO NOT pass**: Full history, unrelated code, previous sessions.
+
+---
+
+## Token-Efficient Scripts (MUST USE)
+
+**🛑 NEVER edit these files directly - use scripts instead:**
+
+| File to Update | USE THIS SCRIPT | Why |
+|----------------|-----------------|-----|
+| JOURNAL.md | `bash .agentic/tools/journal.sh "Topic" "Done" "Next" "Blockers"` | Append-only, no read |
+| STATUS.md | `bash .agentic/tools/status.sh focus "Task"` | Field update, no rewrite |
+| HUMAN_NEEDED.md | `bash .agentic/tools/blocker.sh add "Title" "type" "Details"` | Append-only |
+| spec/FEATURES.md | `bash .agentic/tools/feature.sh F-#### status shipped` | Field update |
+
+**Savings**: Scripts are 40x cheaper than read-edit-write cycles.
 
 ---
 
@@ -229,7 +292,7 @@ rm .agentic/.upgrade_pending
 **RULE**: Each agent works on ONE feature at a time. Never have multiple features "in_progress" for the same agent.
 
 **Before starting new feature:**
-1. Check spec/FEATURES.md (or PRODUCT.md in Core mode) for any "in_progress" features *assigned to you*
+1. Check spec/FEATURES.md for any "in_progress" features *assigned to you*
 2. If found: **Complete that feature FIRST** or mark as "blocked"
 3. Only then start new feature
 
@@ -519,7 +582,13 @@ Please provide:
 - **Check for active pipeline**: If `STACK.md` has `pipeline_enabled: yes`, check for active pipeline in `..agentic/pipeline/` (see `.agentic/workflows/automatic_sequential_pipeline.md`).
 
 ## Non-negotiables
-- **No auto-commits without explicit human approval**: 
+- **PR-based workflow by default** (especially Core+PM profile):
+  - **Create feature branches** for each feature: `git checkout -b feature/F-####-description`
+  - **Create PRs** instead of committing directly to main
+  - **Direct commits to main** only if `git_workflow: direct` in STACK.md (or user explicitly requests)
+  - Profile defaults: Core+PM → `pull_request`, Core → `direct`
+  - See `.agentic/workflows/git_workflow.md` for details
+- **No auto-commits without explicit human approval**:
   - **NEVER commit changes without showing them to the user first and getting explicit approval**
   - **ONLY commit when the user explicitly says "commit" or "commit and push"**
   - Always present a summary of changes and ask for review before committing
@@ -572,7 +641,7 @@ bash .agentic/tools/wip.sh check
 
 **If interrupted work detected:**
 - ⚠️ Previous agent stopped mid-task
-- WIP.md shows what was in progress
+- .agentic/WIP.md shows what was in progress
 - Git diff shows uncommitted changes
 - **STOP and tell user** about interrupted work
 - Offer: Continue | Review | Rollback
@@ -615,24 +684,24 @@ bash .agentic/tools/wip.sh check
 
 ### WIP and Multi-Agent Coordination
 
-**WIP.md acts as a lock file for multi-agent scenarios:**
-- If WIP.md exists and is recent (<5 min): Another agent is working, wait or coordinate
-- If WIP.md exists and is stale (>60 min): Previous agent crashed, review and decide
-- Never start new work while another agent's WIP.md is fresh
+**.agentic/WIP.md acts as a lock file for multi-agent scenarios:**
+- If .agentic/WIP.md exists and is recent (<5 min): Another agent is working, wait or coordinate
+- If .agentic/WIP.md exists and is stale (>60 min): Previous agent crashed, review and decide
+- Never start new work while another agent's .agentic/WIP.md is fresh
 
-### Never Commit with WIP.md Present
+### Never Commit with .agentic/WIP.md Present
 
 **Before commit checklist includes WIP check:**
 ```bash
 # Check if WIP exists
-ls WIP.md 2>/dev/null
+ls .agentic/WIP.md 2>/dev/null
 
 # If exists:
 bash .agentic/tools/wip.sh complete  # Remove lock
 # Then commit
 ```
 
-**Why**: WIP.md presence = work incomplete. Never commit incomplete work.
+**Why**: .agentic/WIP.md presence = work incomplete. Never commit incomplete work.
 
 ### WIP Benefits
 
@@ -706,23 +775,23 @@ bash .agentic/tools/wip.sh complete  # Remove lock
 **What exists**:
 - ✅ `STACK.md` - How to build/run
 - ✅ `CONTEXT_PACK.md` - Architecture overview
-- ✅ `PRODUCT.md` - What we're building, what's done, what's next
+- ✅ `STATUS.md` - Project phase, current focus, what's next
 - ✅ `JOURNAL.md` - Session history
 - ✅ `HUMAN_NEEDED.md` - Escalation protocol
+- ⚪ `PRODUCT.md` - Optional detailed vision document
 
 **What does NOT exist**:
-- ❌ `STATUS.md` - No project status/roadmap
 - ❌ `spec/` - No formal specs or feature tracking
 - ❌ Feature IDs (F-####) - No feature tracking system
 
 **How to work in Core mode**:
-1. **Read the product**: `PRODUCT.md` tells you what's being built, what's done, and what's in scope
-2. **Ask user for direction**: "Which capability from PRODUCT.md should I work on?" or "What's the priority?"
+1. **Read status**: `STATUS.md` tells you project phase, current focus, and what's next
+2. **Ask user for direction**: "What should I work on?" or "What's the priority?"
 3. **Read context**: `CONTEXT_PACK.md` (understand architecture), `JOURNAL.md` (recent work)
-4. **Document as you go**: 
+4. **Document as you go**:
    - Update `CONTEXT_PACK.md` when architecture changes
-   - Update `PRODUCT.md` when you complete capabilities or make technical decisions
-   - Check off items in `PRODUCT.md` "Core capabilities" when done
+   - Update `STATUS.md` when you complete work or change focus
+   - Update `PRODUCT.md` if it exists and you complete capabilities
 5. **Escalate when stuck**: Add to `HUMAN_NEEDED.md` with clear description
 6. **Session continuity**: Always update `JOURNAL.md` with progress summary
 7. **No feature tracking**: Work on what user asks, no F-#### IDs

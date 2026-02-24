@@ -8,22 +8,40 @@
 
 ---
 
+## Branch Check (BEFORE ANYTHING ELSE!)
+
+- [ ] **Am I on a feature branch?**
+  ```bash
+  git branch --show-current
+  ```
+
+  - **If on `main` or `master`**: ⚠️ **STOP! Do NOT commit directly.**
+    - Create a feature branch: `git checkout -b feature/description`
+    - Or ask user: "I'm on main. Should I create a PR or push directly?"
+    - **Only push to main if user explicitly says "push to main directly"**
+
+  - **If on feature branch**: ✓ OK to proceed with commit checks
+
+**Why**: Direct commits to main skip code review and can introduce bugs. PRs are safer.
+
+---
+
 ## Work-In-Progress Check (FIRST!)
 
-- [ ] **WIP.md must be completed**
+- [ ] **.agentic/WIP.md must be completed**
   ```bash
   # Check if WIP lock exists
-  ls WIP.md 2>/dev/null
+  ls .agentic/WIP.md 2>/dev/null
   ```
   
-  - **If WIP.md exists**: Work is not yet complete!
+  - **If .agentic/WIP.md exists**: Work is not yet complete!
     - Complete work first: `bash .agentic/tools/wip.sh complete`
     - This removes the WIP lock file
-    - **NEVER commit while WIP.md exists** (indicates incomplete work)
+    - **NEVER commit while .agentic/WIP.md exists** (indicates incomplete work)
   
-  - **If WIP.md does not exist**: ✓ OK to proceed with commit checks
+  - **If .agentic/WIP.md does not exist**: ✓ OK to proceed with commit checks
 
-**Why**: WIP.md is a lock file that tracks in-progress work. If it exists, the work is not ready for commit.
+**Why**: .agentic/WIP.md is a lock file that tracks in-progress work. If it exists, the work is not ready for commit.
 
 ---
 
@@ -224,17 +242,19 @@ docs(readme): update installation instructions
 
 ## Anti-Patterns
 
-❌ **Don't** commit without human approval  
-❌ **Don't** commit with failing tests  
-❌ **Don't** commit without updating JOURNAL.md  
-❌ **Don't** commit with stale FEATURES.md/PRODUCT.md  
-❌ **Don't** commit with "(Not yet created)" placeholders  
-❌ **Don't** commit debug code (console.log, etc.)  
+❌ **Don't** commit directly to main (create PR instead)
+❌ **Don't** commit without human approval
+❌ **Don't** commit with failing tests
+❌ **Don't** commit without updating JOURNAL.md
+❌ **Don't** commit with stale FEATURES.md/PRODUCT.md
+❌ **Don't** commit with "(Not yet created)" placeholders
+❌ **Don't** commit debug code (console.log, etc.)
 
-✅ **Do** show changes before committing  
-✅ **Do** wait for explicit approval  
-✅ **Do** update docs in same commit as code  
-✅ **Do** run quality checks  
+✅ **Do** check branch first (`git branch --show-current`)
+✅ **Do** show changes before committing
+✅ **Do** wait for explicit approval
+✅ **Do** update docs in same commit as code
+✅ **Do** run quality checks
 ✅ **Do** write clear commit messages  
 
 ---

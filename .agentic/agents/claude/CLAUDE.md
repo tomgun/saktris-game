@@ -11,9 +11,23 @@ You are working in a repository that uses the **Agentic Framework**.
 | Trigger Words | YOUR FIRST ACTION |
 |---------------|-------------------|
 | "build", "implement", "add", "create", "let's do" | **🛑 STOP → Read `feature_start.md` → Check acceptance criteria EXIST** |
+| "implement entire", "full system", "complete feature" | **🛑 STOP → TOO BIG. Break into 3-5 smaller tasks. Max 5-10 files.** |
+| "new project", "let's plan", "define requirements" | **→ Iterative questioning. Offer: finalize / 4 more questions / give context** |
 | "fix", "bug", "issue" | **🛑 STOP → Check spec/ISSUES.md → Write failing test FIRST** |
 | "commit", "push" | **🛑 STOP → Read `before_commit.md` → All gates must pass** |
 | "done", "complete", "finished" | **🛑 STOP → Read `feature_complete.md` → Verify ALL items** |
+| "what is this project", "what am I working on" | **→ Read CONTEXT_PACK.md FIRST, then answer** |
+
+### 🛑 TOKEN-EFFICIENT SCRIPTS (MUST USE - Never edit these files directly!)
+
+| When updating... | USE THIS SCRIPT | NOT direct file edit |
+|------------------|-----------------|----------------------|
+| JOURNAL.md | `bash .agentic/tools/journal.sh "Topic" "Done" "Next" "Blockers"` | ❌ Read/Edit |
+| STATUS.md (focus, progress) | `bash .agentic/tools/status.sh focus "Task"` | ❌ Read/Edit |
+| HUMAN_NEEDED.md (blockers) | `bash .agentic/tools/blocker.sh add "Title" "type" "Details"` | ❌ Read/Edit |
+| spec/FEATURES.md | `bash .agentic/tools/feature.sh F-#### status shipped` | ❌ Read/Edit |
+
+**WHY**: Scripts append/update fields without reading whole file = 40x cheaper tokens.
 
 ## 🚫 DO NOT PROCEED UNTIL:
 
@@ -59,12 +73,25 @@ FEATURE REQUEST?
 
 **At session start (first message, tokens reset, user returns), BE PROACTIVE:**
 
+### 0. FIRST: Check for Other Active Agents (Multi-Window Conflict Prevention)
+
+**IMMEDIATELY read `.agentic/AGENTS_ACTIVE.md`** before doing anything else:
+
+```bash
+cat .agentic/AGENTS_ACTIVE.md 2>/dev/null
+```
+
+**If file exists and shows other agents:**
+- ⚠️ **TELL USER IMMEDIATELY**: "👥 Another agent is already working on [X]. I'll avoid those files."
+- **Add yourself** to `.agentic/AGENTS_ACTIVE.md`
+- **Work on different files/features** to prevent merge conflicts
+
 ### 1. Silently Read Context
 
 ```bash
-cat STATUS.md 2>/dev/null || cat PRODUCT.md 2>/dev/null
+cat STATUS.md 2>/dev/null
 cat HUMAN_NEEDED.md 2>/dev/null | head -20
-ls WIP.md 2>/dev/null
+ls .agentic/WIP.md 2>/dev/null
 ```
 
 ### 2. Greet User with Recap (DO THIS AUTOMATICALLY!)
@@ -75,7 +102,7 @@ ls WIP.md 2>/dev/null
 👋 Welcome back! Here's where we are:
 
 **Last session**: [Summary from JOURNAL.md/STATUS.md]
-**Current focus**: [From STATUS.md or PRODUCT.md]
+**Current focus**: [From STATUS.md]
 
 **Next steps** (pick one or tell me something else):
 1. [Next planned task]
@@ -87,7 +114,10 @@ What would you like to work on?
 
 ### 3. Handle Special Cases
 
-- **WIP.md exists?** → "⚠️ Previous work interrupted! [options]"
+- **.agentic/AGENTS_ACTIVE.md shows other agents?** → "👥 Another agent is working on [X]. I'll work on different files."
+  - **Register yourself** in .agentic/AGENTS_ACTIVE.md
+  - **Avoid their files** to prevent conflicts
+- **.agentic/WIP.md exists?** → "⚠️ Previous work interrupted! [options]"
 - **HUMAN_NEEDED.md has items?** → "📋 [N] items need your input"
 - **Upgrade pending?** → Handle it, then greet
 
@@ -194,9 +224,11 @@ bash .agentic/tools/journal.sh \
 
 ## Token-Efficient Scripts (USE THESE, Don't Edit Files Directly!)
 
+**🛑 MANDATORY**: For JOURNAL.md, FEATURES.md, STATUS.md, HUMAN_NEEDED.md - **ALWAYS use scripts, NEVER edit directly**.
+
 **Located in `.agentic/tools/`** - these save massive tokens by avoiding full file reads:
 
-### 1. `journal.sh` - Append to JOURNAL.md
+### 1. `journal.sh` - Append to JOURNAL.md (🛑 ALWAYS USE THIS)
 ```bash
 bash .agentic/tools/journal.sh \
   "Session topic" \
@@ -256,12 +288,37 @@ bash .agentic/tools/blocker.sh resolve HN-0001 \
 
 ---
 
+## 🛑 MANDATORY: Small Batch Development
+
+**WHEN user asks for something large** (e.g., "implement entire auth system", "build full API"):
+
+```
+🛑 STOP - This is TOO BIG for one task.
+
+I'll break this into smaller, manageable pieces:
+1. [First small piece - 3-5 files max]
+2. [Second piece]
+3. [Third piece]
+...
+
+Let's start with #1. Which would you like to tackle first?
+```
+
+**Why this matters**:
+- Max 5-10 files per commit = easy review, safe rollback
+- One feature at a time = focused context, fewer bugs
+- Small batches = you can verify each piece works before moving on
+
+**Signs it's too big**: User asks for "entire", "full", "complete system", or lists 4+ features.
+
+---
+
 ## Core Guidelines (Unchanged)
 
 1. **Read at session start**:
    - `AGENTS.md` (if present)
    - `.agentic/agents/shared/agent_operating_guidelines.md` (mandatory)
-   - `CONTEXT_PACK.md` (where things are, how to run)
+   - `CONTEXT_PACK.md` (where things are, how to run) - **READ THIS to understand project**
    - `STATUS.md` (current focus, next steps)
 
 2. **Follow programming standards** (`.agentic/quality/programming_standards.md`):
@@ -274,9 +331,12 @@ bash .agentic/tools/blocker.sh resolve HN-0001 \
    - Check `STACK.md` for `development_mode` (tdd recommended)
    - TDD: Write tests FIRST (see `.agentic/workflows/tdd_mode.md`)
 
-5. **Never auto-commit**:
-   - ALWAYS show changes to human first
-   - ONLY commit when human explicitly approves
+5. **Git workflow** (see `.agentic/workflows/git_workflow.md`):
+   - **PR by default**: Create feature branches and PRs (not direct commits to main)
+   - Check `git_workflow` in STACK.md: `pull_request` (default) or `direct`
+   - Feature branch naming: `feature/F-####-description`
+   - **Never auto-commit**: ALWAYS show changes to human first
+   - ONLY commit/create PR when human explicitly approves
 
 ---
 
@@ -385,9 +445,9 @@ See `.agentic/token_efficiency/claude_best_practices.md` for details.
 
 If multiple agents are working simultaneously:
 
-1. **Check `.agentic/spec/AGENTS_ACTIVE.md`** for coordination
+1. **Check `.agentic/spec/.agentic/AGENTS_ACTIVE.md`** for coordination
 2. **Use file locking** (scripts handle this automatically)
-3. **Communicate via AGENTS_ACTIVE.md** (don't step on each other's toes)
+3. **Communicate via .agentic/AGENTS_ACTIVE.md** (don't step on each other's toes)
 4. **Append-only operations** (SESSION_LOG.md, JOURNAL.md) are safe for concurrent use
 
 ---

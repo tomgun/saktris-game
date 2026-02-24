@@ -1,0 +1,29 @@
+# Context Manifest: Research Agent
+# Investigates technology choices, best practices, external dependencies
+
+role: research-agent
+token_budget: 3000
+description: Research technology options and best practices
+
+required:
+  - CONTEXT_PACK.md[architecture]           # Understand project structure
+  - STACK.md                                # Current tech stack
+  - .agentic/agents/shared/guidelines/anti-hallucination.md
+
+optional:
+  - spec/PRD.md                             # Product goals (if Core+PM)
+  - spec/acceptance/{feature_id}.md       # If assigned to specific feature
+
+exclude:
+  - JOURNAL.md
+  - STATUS.md
+  - src/                                    # Not implementing code
+  - tests/                                  # Not writing tests
+  - .agentic/workflows/
+
+variables:
+  - feature_id
+
+section_markers:
+  CONTEXT_PACK.md:
+    architecture: "## Architecture"

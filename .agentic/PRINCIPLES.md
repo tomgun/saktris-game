@@ -143,7 +143,7 @@
 
 2. **Commit Gates** (Blocking):
    - `.agentic/hooks/pre-commit-check.sh` - Validates before commit allowed
-   - Checks: WIP.md doesn't exist, shipped features have acceptance criteria
+   - Checks: .agentic/WIP.md doesn't exist, shipped features have acceptance criteria
    - Exit code 1 blocks commit if validation fails
 
 3. **Feature Completion Protocol** (Validated):
@@ -181,7 +181,7 @@ bash .agentic/tools/feature.sh F-0005 status shipped
 
 # Pre-commit hook blocks if incomplete
 bash .agentic/hooks/pre-commit-check.sh
-# Exit 1 if WIP.md exists (work incomplete)
+# Exit 1 if .agentic/WIP.md exists (work incomplete)
 # Exit 1 if shipped features lack acceptance criteria
 # Exit 0 only if all gates pass
 ```
@@ -194,7 +194,7 @@ bash .agentic/hooks/pre-commit-check.sh
 
 **Early Detection**:
 - Problem: Agent commits incomplete work, builds on it, compounds errors
-- Solution: Pre-commit hook detects WIP.md, blocks commit until complete
+- Solution: Pre-commit hook detects .agentic/WIP.md, blocks commit until complete
 
 **Cross-Agent Consistency**:
 - Problem: Different AI models interpret guidelines differently
@@ -278,28 +278,30 @@ bash .agentic/hooks/pre-commit-check.sh
 
 ---
 
-### Agent Delegation Saves Tokens
+### Agent Delegation: Fresh Context is the Key Benefit
 
-**What**: Specialized agents with cheaper models handle specific tasks more efficiently than one powerful agent doing everything.
+**What**: Specialized subagents start with fresh, focused context instead of inheriting 100K+ tokens of accumulated conversation.
 
-**Why**:
-- Cheap/fast models are ~10x less expensive than powerful ones
-- Simple tasks (exploration, lookups) don't need expensive reasoning
-- Subagents get fresh, focused context (not full conversation history)
-- Parallel execution for independent tasks
+**Why (in order of importance)**:
+1. **Fresh context** - Subagent gets 5-10K focused tokens, not 100K+ of drift
+2. **Better focus** - Agent sees only what's relevant to its task
+3. **Less drift** - No accumulated confusion from long conversations
+4. **Token savings** - Smaller input = fewer tokens billed (indirect benefit)
+
+**Model Choice is Optional**:
+- **Same model** (e.g., Opus 4.5): Best quality, benefit is context isolation
+- **Cheaper model** (e.g., Haiku): Cost savings for simple/mechanical tasks
+- **Your choice**: Use best model for quality-critical work
 
 **How**:
-- Use **tier-based model selection** (not specific model names):
-  - Cheap/Fast tier: Exploration, lookups, simple searches
-  - Mid-tier: Implementation, testing, reviews
-  - Powerful tier: Complex architecture, difficult bugs
-- Delegate exploration to explore-agent (cheap/fast)
-- Delegate implementation to implementation-agent (mid-tier)
+- Delegate exploration to explore-agent (fresh context for search)
+- Delegate implementation to implementation-agent (focused on code)
 - Create project-specific agents for domain expertise
+- Choose model based on task complexity, not as default optimization
 
-**Example**: Instead of opus analyzing "where is auth implemented?" → spawn explore-agent with haiku. Saves ~90% tokens.
+**Example**: Long session (100K context) → spawn subagent for focused task (5K context). Result: clearer output, regardless of model.
 
-**Anti-pattern**: ❌ Using the most powerful model for every task. ❌ Hardcoding specific model names (they change frequently).
+**Anti-pattern**: ❌ Assuming cheaper models are always better. ❌ Keeping everything in one long session until context overflows.
 
 **Reference**: `.agentic/token_efficiency/agent_delegation_savings.md`
 
@@ -767,8 +769,8 @@ Type 'a' or 'b':
 **How Enforced**:
 - STACK.md has `Profile:` field
 - agent_operating_guidelines.md checks profile
-- Core: minimal ceremony (PRODUCT.md)
-- Core+PM: formal tracking (spec/, STATUS.md)
+- Core: minimal ceremony (STATUS.md, optional PRODUCT.md)
+- Core+PM: formal tracking (STATUS.md + spec/)
 
 **Example**: 
 - Core: Weekend project, prototype, external PM → Use Core
@@ -981,8 +983,8 @@ Type 'a' or 'b':
 
 ---
 
-**Last Updated**: 2025-01-11  
-**Framework Version**: 0.9.7  
+**Last Updated**: 2026-01-27
+**Framework Version**: 0.12.0  
 
 **Note**: Principles evolve, but slowly. Major changes to core philosophy require strong justification and community discussion.
 

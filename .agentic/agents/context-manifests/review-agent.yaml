@@ -1,0 +1,27 @@
+# Context Manifest: Review Agent
+# Reviews code quality, security, and adherence to standards
+
+role: review-agent
+token_budget: 6000
+description: Review code quality, security, and standards compliance
+
+required:
+  - spec/acceptance/{feature_id}.md         # Original requirements
+  - .agentic/quality/programming_standards.md # Code standards
+  - .agentic/agents/shared/guidelines/anti-hallucination.md
+  # Changed files passed dynamically from pipeline
+
+optional:
+  - .agentic/quality/testing_standards.md     # Test quality review
+  - .agentic/checklists/before_commit.md      # Pre-commit checklist
+
+exclude:
+  - JOURNAL.md
+  - STATUS.md
+  - docs/research/
+  - spec/PRD.md
+  - .agentic/workflows/
+
+variables:
+  - feature_id
+  - changed_files   # List of files to review (passed at invocation)

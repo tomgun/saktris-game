@@ -1,0 +1,26 @@
+# Context Manifest: Planning Agent
+# Creates implementation plans and acceptance criteria
+
+role: planning-agent
+token_budget: 4000
+description: Create implementation plans and acceptance criteria
+
+required:
+  - CONTEXT_PACK.md                         # Project architecture
+  - STACK.md                                # Tech stack constraints
+  - .agentic/agents/shared/guidelines/anti-hallucination.md
+
+optional:
+  - docs/research/{topic}.md                # Research findings (if available)
+  - spec/PRD.md                             # Product requirements
+  - spec/FEATURES.md[related_features]      # Related features
+
+exclude:
+  - JOURNAL.md
+  - STATUS.md
+  - src/                                    # Not implementing
+  - tests/                                  # Not writing tests
+
+variables:
+  - feature_id
+  - topic

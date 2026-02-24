@@ -93,10 +93,13 @@ echo ""
 echo -e "${BLUE}[2/7] Detecting versions${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Current version (from target project)
+# Current version (from target project - prefer .agentic/VERSION, fallback to STACK.md)
 CURRENT_VERSION=""
-if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
-  CURRENT_VERSION=$(grep -E "^\s*-?\s*Version:" "$TARGET_PROJECT_DIR/STACK.md" | head -1 | sed -E 's/.*Version:\s*([0-9.]+).*/\1/' || echo "unknown")
+if [[ -f "$TARGET_PROJECT_DIR/.agentic/VERSION" ]]; then
+  CURRENT_VERSION=$(cat "$TARGET_PROJECT_DIR/.agentic/VERSION" | tr -d '[:space:]')
+elif [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+  # Extract version number from line like "- Version: 0.11.2  <!-- comment -->"
+  CURRENT_VERSION=$(grep -E "^\s*-?\s*Version:" "$TARGET_PROJECT_DIR/STACK.md" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
 fi
 
 # New version (from this framework)
@@ -206,17 +209,101 @@ else
       echo -e "${GREEN}  ✓ Updated: .agentic/$file${NC}"
     fi
   done
+
+  # Restore state files from backup (these are project-specific, not framework)
+  echo ""
+  echo "  Restoring project state files from backup..."
+  STATE_FILES=(
+    "WIP.md"              # Work in progress tracking
+    "AGENTS_ACTIVE.md"    # Multi-agent coordination
+    ".verification-state" # Verification state
+  )
+  for state_file in "${STATE_FILES[@]}"; do
+    if [[ -f "$TARGET_PROJECT_DIR/$BACKUP_DIR/$state_file" ]]; then
+      cp "$TARGET_PROJECT_DIR/$BACKUP_DIR/$state_file" "$TARGET_PROJECT_DIR/.agentic/"
+      echo -e "${GREEN}  ✓ Restored: .agentic/$state_file${NC}"
+    fi
+  done
 fi
 
 echo ""
 
-# Step 6: REMOVED - consolidated into Step 7
-# (Previous versions had duplicate STACK.md update logic here and in Step 7)
+# Step 5b: Regenerate Claude Skills
+echo -e "${BLUE}[5b/8] Regenerating Claude Skills${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would regenerate Claude Skills"
+elif [[ -f "$TARGET_PROJECT_DIR/.agentic/tools/generate-skills.sh" ]]; then
+  # Remove old generated skills (keep custom skills)
+  if [[ -d "$TARGET_PROJECT_DIR/.claude/skills" ]]; then
+    # Only remove skills that have the "Generated from:" marker
+    for skill_dir in "$TARGET_PROJECT_DIR/.claude/skills"/*; do
+      if [[ -d "$skill_dir" ]] && [[ -f "$skill_dir/SKILL.md" ]]; then
+        if grep -q "Generated from: .agentic/agents/claude/subagents" "$skill_dir/SKILL.md" 2>/dev/null; then
+          rm -rf "$skill_dir"
+        fi
+      fi
+    done
+  fi
+
+  # Generate fresh skills
+  bash "$TARGET_PROJECT_DIR/.agentic/tools/generate-skills.sh" 2>/dev/null || true
+
+  if [[ -d "$TARGET_PROJECT_DIR/.claude/skills" ]]; then
+    SKILL_COUNT=$(ls -1 "$TARGET_PROJECT_DIR/.claude/skills/" 2>/dev/null | wc -l | tr -d ' ')
+    echo -e "  ${GREEN}✓${NC} Regenerated $SKILL_COUNT Claude Skills"
+  else
+    echo -e "  ${YELLOW}⚠${NC} No skills generated"
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC} generate-skills.sh not found, skipping"
+fi
 
 echo ""
 
-# Step 7: Verification
-echo -e "${BLUE}[7/7] Running verification${NC}"
+# Step 6: Migrate STATUS.md for Core profile
+echo -e "${BLUE}[6/7] Checking STATUS.md migration${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Detect profile
+PROFILE="core"
+if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+  PROFILE_LINE=$(grep -E "^\s*-\s*Profile:" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null || echo "")
+  if [[ "$PROFILE_LINE" == *"core+product"* ]]; then
+    PROFILE="core+product"
+  fi
+fi
+
+# Check if STATUS.md exists
+if [[ ! -f "$TARGET_PROJECT_DIR/STATUS.md" ]]; then
+  echo "  STATUS.md not found - creating (now required for all profiles)"
+
+  if [[ -f "$NEW_FRAMEWORK_DIR/.agentic/init/STATUS.template.md" ]]; then
+    cp "$NEW_FRAMEWORK_DIR/.agentic/init/STATUS.template.md" "$TARGET_PROJECT_DIR/STATUS.md"
+    echo -e "  ${GREEN}✓${NC} Created STATUS.md from template"
+
+    # Add to upgrade marker TODO
+    STATUS_MD_MIGRATION="yes"
+  else
+    echo -e "  ${YELLOW}⚠${NC} Template not found - run: bash .agentic/init/scaffold.sh"
+  fi
+else
+  echo -e "  ${GREEN}✓${NC} STATUS.md already exists"
+fi
+
+# Check if STATUS.md has Project Phase section (new requirement)
+if [[ -f "$TARGET_PROJECT_DIR/STATUS.md" ]]; then
+  if ! grep -q "## Project Phase" "$TARGET_PROJECT_DIR/STATUS.md" 2>/dev/null; then
+    echo -e "  ${YELLOW}⚠${NC} STATUS.md missing Project Phase section (see template for format)"
+    STATUS_MD_NEEDS_UPDATE="yes"
+  fi
+fi
+
+echo ""
+
+# Step 7: Verification (now 7/9)
+echo -e "${BLUE}[7/9] Running verification${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ "$DRY_RUN" == "yes" ]]; then
@@ -272,8 +359,8 @@ fi
 
 echo ""
 
-# Step 6: Update STACK.md with new version (consolidated, robust pattern matching)
-echo -e "${BLUE}[6/7] Updating STACK.md with new framework version${NC}"
+# Step 8: Update STACK.md with new version (consolidated, robust pattern matching)
+echo -e "${BLUE}[8/9] Updating STACK.md with new framework version${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Use whichever version variable is set (FRAMEWORK_VERSION or NEW_VERSION as fallback)
@@ -337,12 +424,51 @@ else
   echo -e "  ${YELLOW}⚠${NC} Could not update .agentic/VERSION (version unknown)"
 fi
 
-# Step 7: Create upgrade marker for agent to pick up at next session
-echo -e "${BLUE}[7/7] Creating upgrade marker${NC}"
+# Step 9: Create upgrade marker for agent to pick up at next session
+echo -e "${BLUE}[9/9] Creating upgrade marker${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 debug "Creating upgrade marker at: $TARGET_PROJECT_DIR/.agentic/.upgrade_pending"
 debug "  .agentic dir exists? $(test -d "$TARGET_PROJECT_DIR/.agentic" && echo yes || echo no)"
+
+# Helper function: check if version A < version B
+version_lt() {
+  # Returns 0 (true) if $1 < $2
+  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
+}
+
+# Build NEW FEATURES section based on version upgrade path
+# Features registry: "version_introduced:feature_name:command:description"
+# Only features introduced AFTER from_version and AT OR BEFORE to_version are shown
+NEW_FEATURES_SECTION=""
+FROM_VER="${CURRENT_VERSION:-0.0.0}"
+TO_VER="${VERSION_TO_USE:-999.0.0}"
+
+# Feature registry - add new features here with the version they were introduced
+declare -a FEATURE_REGISTRY=(
+  "0.5.0:Sub-agent setup:bash .agentic/tools/setup-agent.sh cursor-agents:Specialized agents for different tasks"
+  "0.5.0:Multi-agent pipeline:bash .agentic/tools/setup-agent.sh pipeline:Parallel work coordination"
+  "0.5.0:Tool setup:bash .agentic/tools/setup-agent.sh all:Auto-loaded instructions"
+  "0.12.0:STATUS.md consolidation:See STATUS.md:STATUS.md now required for both Core and Core+PM profiles"
+)
+
+# Filter features based on version range
+NEW_FEATURES=""
+for feature_entry in "${FEATURE_REGISTRY[@]}"; do
+  IFS=':' read -r feat_version feat_name feat_cmd feat_desc <<< "$feature_entry"
+  # Include if: from_version < feature_version <= to_version
+  if version_lt "$FROM_VER" "$feat_version" && ! version_lt "$TO_VER" "$feat_version"; then
+    NEW_FEATURES="${NEW_FEATURES}       - ${feat_name}: \`${feat_cmd}\` (${feat_desc})\n"
+  fi
+done
+
+# Only add NEW FEATURES section if there are actually new features
+if [[ -n "$NEW_FEATURES" ]]; then
+  NEW_FEATURES_SECTION="7. [ ] **NEW FEATURES CHECK**: Ask user about new features added since ${FROM_VER}:
+${NEW_FEATURES}8. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
+else
+  NEW_FEATURES_SECTION="7. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
+fi
 
 if [[ ! -d "$TARGET_PROJECT_DIR/.agentic" ]]; then
   echo -e "${RED}✗ Cannot create marker: .agentic/ directory not found${NC}"
@@ -365,22 +491,14 @@ else
 
 1. ✅ Read this file (you're doing it now)
 2. [ ] If "STACK.md updated: no" above → manually update: \`- Version: ${VERSION_TO_USE:-unknown}\`
-3. [ ] Check spec files for format markers (add if missing):
-       - spec/FEATURES.md → \`<!-- format: features-v0.2.0 -->\`
-       - spec/NFR.md → \`<!-- format: nfr-v0.1.0 -->\`
-       - spec/ISSUES.md → \`<!-- format: issues-v0.1.0 -->\`
-4. [ ] Read .agentic/START_HERE.md (5 min) for new workflows
-5. [ ] Validate specs: \`python3 .agentic/tools/validate_specs.py\`
-6. [ ] Review CHANGELOG: ${VERSION_TO_USE:-unknown} changes
-7. [ ] **NEW FEATURES CHECK**: Ask user about new features added since their last version:
-       - Sub-agent setup: \`bash .agentic/tools/setup-agent.sh cursor-agents\` (for specialized agents)
-       - Multi-agent pipeline: \`bash .agentic/tools/setup-agent.sh pipeline\` (for parallel work)
-       - Tool setup: \`bash .agentic/tools/setup-agent.sh all\` (auto-loaded instructions)
-8. [ ] Delete this file: \`rm .agentic/.upgrade_pending\`
+3. [ ] Read .agentic/START_HERE.md (5 min) for new workflows
+4. [ ] Validate specs: \`python3 .agentic/tools/validate_specs.py\`
+5. [ ] Review CHANGELOG for ${VERSION_TO_USE:-unknown} changes (see link below)
+$(echo -e "$NEW_FEATURES_SECTION")
 
 ## Changelog
 
-See: https://github.com/tomgun/agentic-framework/blob/v${VERSION_TO_USE:-unknown}/CHANGELOG.md
+https://github.com/tomgun/agentic-framework/blob/main/CHANGELOG.md
 
 ## Don't Waste Tokens!
 
@@ -427,7 +545,7 @@ else
   echo "Project: $TARGET_PROJECT_DIR"
   echo ""
   echo "Next steps:"
-  echo "  1. Review CHANGELOG: https://github.com/tomgun/agentic-framework/blob/v${VERSION_TO_USE:-latest}/CHANGELOG.md"
+  echo "  1. Review CHANGELOG: https://github.com/tomgun/agentic-framework/blob/main/CHANGELOG.md"
   echo "  2. Test your workflow: bash .agentic/tools/dashboard.sh"
   echo "  3. Run quality checks: bash quality_checks.sh --pre-commit (if configured)"
   echo ""

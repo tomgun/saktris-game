@@ -23,10 +23,10 @@ echo ""
 
 WARNINGS=0
 
-# 0. Check for WIP.md (work in progress lock)
-if [[ -f "WIP.md" ]]; then
-  echo "🚨 WIP.md exists - work may be incomplete!"
-  echo "   Feature in progress (check WIP.md for details)"
+# 0. Check for .agentic/WIP.md (work in progress lock)
+if [[ -f ".agentic/WIP.md" ]]; then
+  echo "🚨 .agentic/WIP.md exists - work may be incomplete!"
+  echo "   Feature in progress (check .agentic/WIP.md for details)"
   echo "   Options:"
   echo "   - Complete work: bash .agentic/tools/wip.sh complete"
   echo "   - Leave for next session: OK if intentional handoff"
@@ -62,22 +62,16 @@ if [[ -f "JOURNAL.md" ]]; then
   fi
 fi
 
-# 3. Check if .continue-here.md is fresh
-if [[ ! -f ".continue-here.md" ]]; then
-  echo "💡 Tip: Generate .continue-here.md for next session"
-  echo "   Run: python3 .agentic/tools/continue_here.py"
-elif command -v stat >/dev/null 2>&1; then
-  if [[ "$(uname)" == "Darwin" ]]; then
-    CONTINUE_AGE_SECONDS=$(( $(date +%s) - $(stat -f %m .continue-here.md) ))
-  else
-    CONTINUE_AGE_SECONDS=$(( $(date +%s) - $(stat -c %Y .continue-here.md) ))
+# 3. Check if STATUS.md exists and has Project Phase
+if [[ -f "STATUS.md" ]]; then
+  if ! grep -q "## Project Phase" STATUS.md 2>/dev/null; then
+    echo "💡 Tip: Add Project Phase section to STATUS.md"
+    echo "   Phase: discovery | building"
   fi
-  
-  ONE_HOUR=$((60 * 60))
-  if [[ $CONTINUE_AGE_SECONDS -gt $ONE_HOUR ]]; then
-    echo "💡 Tip: Refresh .continue-here.md for next session"
-    echo "   Run: python3 .agentic/tools/continue_here.py"
-  fi
+else
+  echo "⚠️  No STATUS.md found"
+  echo "   Run: bash .agentic/init/scaffold.sh"
+  WARNINGS=$((WARNINGS + 1))
 fi
 
 # 4. Check for in-progress features (Core+PM mode)
@@ -99,8 +93,7 @@ else
   echo "Session end checklist:"
   echo "- [ ] Commit changes (git add + git commit)"
   echo "- [ ] Update JOURNAL.md with session summary"
-  echo "- [ ] Update STATUS.md or PRODUCT.md if needed"
-  echo "- [ ] Generate .continue-here.md for next session"
+  echo "- [ ] Update STATUS.md (Project Phase, current focus)"
 fi
 echo ""
 

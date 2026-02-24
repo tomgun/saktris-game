@@ -1,0 +1,11 @@
+{
+  "last_run": "2026-01-27T20:38:14.638301",
+  "result": "issues",
+  "issues_count": 5,
+  "suggestions_count": 7,
+  "phase": null,
+  "detected_stack": "audio_dsp",
+  "git_commit": "6d75dcb9",
+  "git_modified": 83,
+  "git_untracked": 42
+}

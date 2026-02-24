@@ -10,7 +10,7 @@
 
 **🚨 CRITICAL**: If session ends abruptly, these documents are the ONLY record of progress. Update them BEFORE ending!
 
-### Core Profile
+### Both Profiles (Core and Core+PM)
 
 - [ ] **`JOURNAL.md` updated with full session summary** (NON-NEGOTIABLE!)
   - Session date/time
@@ -22,11 +22,16 @@
   - Any context the next session needs
   - **RULE**: Never end session without updating JOURNAL.md!
 
-- [ ] **`PRODUCT.md` reflects current state**
+- [ ] **`STATUS.md` updated**
+  - Current session state: Summarize this session
+  - Completed this session: List concrete accomplishments
+  - Next immediate step: Clear, actionable next step
+  - Blockers: Document any blockers encountered
+
+- [ ] **`PRODUCT.md` updated** (optional - only if project has one)
   - Completed capabilities marked [x]
   - "What works now" is accurate
-  - "Known limitations" is current
-  - No stale information
+  - Skip if project uses STATUS.md only
 
 - [ ] **`CONTEXT_PACK.md` updated** (if anything changed)
   - New modules/components documented
@@ -34,13 +39,7 @@
   - Architecture snapshot current
   - Known risks updated
 
-### Core+Product Profile (All Core items plus:)
-
-- [ ] **`STATUS.md` updated**
-  - Current session state: Summarize this session
-  - Completed this session: List concrete accomplishments
-  - Next immediate step: Clear, actionable next step
-  - Blockers: Document any blockers encountered
+### Core+Product Profile (Additional items:)
 
 - [ ] **`spec/FEATURES.md` updated** (if working on features)
   - Status accurate (planned/in_progress/shipped)
@@ -270,4 +269,21 @@ Your final message should include:
 **Remember**: The next agent (or you in a fresh context) will rely on what you documented. Make it easy for them.
 
 **Quality bar**: Could a fresh agent with NO context read JOURNAL.md and STATUS.md and know exactly what to do next? If not, add more detail.
+
+---
+
+## Periodic: Spec ↔ Code Alignment (Weekly/Major Milestones)
+
+Run occasionally to catch drift between specs and code:
+
+```bash
+bash .agentic/tools/drift.sh
+```
+
+This checks:
+- Specs have matching code (and vice versa)
+- Non-coders can understand system by reading specs
+- No undocumented functionality
+
+Not required every session, but useful after major work.
 
