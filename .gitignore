@@ -67,3 +67,13 @@ data_*/
 
 # Godot exported data
 *.translation
+
+# Local build exports
+/dist/
+
+# AI tool configs
+.claude/
+.cursor/
+
+# Screenshots
+Screenshot *.png
