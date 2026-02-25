@@ -129,12 +129,26 @@ layout_mode = 2
 text = "Room Code:"
 horizontal_alignment = 1
 
-[node name="RoomCodeDisplay" type="Label" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+[node name="RoomCodeRow" type="HBoxContainer" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="RoomCodeDisplay" type="LineEdit" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox/RoomCodeRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "XXXXXX"
-horizontal_alignment = 1
+alignment = 1
+editable = false
+selecting_enabled = true
+
+[node name="CopyButton" type="Button" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox/RoomCodeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+text = "Copy"
 
 [node name="ShareLabel" type="Label" parent="CenterContainer/VBoxContainer/WaitingPanel/VBox/MarginContainer/VBox"]
 layout_mode = 2

@@ -10,7 +10,8 @@ signal game_starting(settings: Dictionary, is_host: bool, my_side: int)
 @onready var join_button: Button = %JoinButton
 @onready var back_button: Button = %BackButton
 @onready var room_code_input: LineEdit = %RoomCodeInput
-@onready var room_code_display: Label = %RoomCodeDisplay
+@onready var room_code_display: LineEdit = %RoomCodeDisplay
+@onready var copy_button: Button = %CopyButton
 @onready var waiting_panel: PanelContainer = %WaitingPanel
 @onready var join_panel: PanelContainer = %JoinPanel
 @onready var main_panel: PanelContainer = %MainPanel
@@ -27,6 +28,7 @@ func _ready() -> void:
 	join_button.pressed.connect(_on_join_pressed)
 	back_button.pressed.connect(_on_back_pressed)
 	cancel_button.pressed.connect(_on_cancel_pressed)
+	copy_button.pressed.connect(_on_copy_pressed)
 	white_button.pressed.connect(_on_white_selected)
 	black_button.pressed.connect(_on_black_selected)
 	room_code_input.text_submitted.connect(_on_room_code_submitted)
@@ -128,6 +130,13 @@ func _try_join_room(code: String) -> void:
 func _on_back_pressed() -> void:
 	NetworkManager.disconnect_from_game()
 	back_pressed.emit()
+
+
+func _on_copy_pressed() -> void:
+	DisplayServer.clipboard_set(room_code_display.text)
+	copy_button.text = "Copied!"
+	# Reset button text after a short delay
+	get_tree().create_timer(1.5).timeout.connect(func(): copy_button.text = "Copy")
 
 
 func _on_cancel_pressed() -> void:

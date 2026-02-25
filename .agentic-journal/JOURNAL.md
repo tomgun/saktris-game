@@ -38,3 +38,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-25 23:38 - Room Code UX
+
+**Why**: UX improvement for sharing room codes
+
+**Accomplished**:
+- Made room code copy-pasteable with selectable LineEdit and Copy button
+
+**Next steps**:
+- End-to-end multiplayer testing
+
+**Blockers**: None
+
