@@ -22,8 +22,10 @@ var my_side: int = Piece.Side.WHITE
 signal new_game_requested
 
 
+const BUILD_ID := "2026-02-25T01:00"
+
 func _ready() -> void:
-	print("Saktris v0.1.0 starting...")
+	print("Saktris v0.1.0 [build %s]" % BUILD_ID)
 	two_player_button.pressed.connect(_on_two_player_pressed)
 	vs_computer_button.pressed.connect(_on_vs_computer_pressed)
 	play_online_button.pressed.connect(_on_play_online_pressed)

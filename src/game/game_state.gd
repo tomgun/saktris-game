@@ -882,14 +882,9 @@ func _on_ai_progress(percent: float) -> void:
 
 func _process_piece_arrival() -> void:
 	## Check if a piece should arrive this turn
-	var player := "WHITE" if current_player == Piece.Side.WHITE else "BLACK"
-	var pieces_given := arrival_manager.white_pieces_given if current_player == Piece.Side.WHITE else arrival_manager.black_pieces_given
-	var moves_made := arrival_manager.white_moves_made if current_player == Piece.Side.WHITE else arrival_manager.black_moves_made
 	var should_arrive := arrival_manager.should_piece_arrive(current_player, move_count)
-	print("[DEBUG] _process_piece_arrival for %s: pieces_given=%d, moves_made=%d, should_arrive=%s" % [player, pieces_given, moves_made, should_arrive])
 	if should_arrive:
 		arrival_manager.queue_next_piece(current_player)
-		print("[DEBUG] Queued new piece for %s" % player)
 
 
 func _update_game_status() -> void:

@@ -67,7 +67,7 @@ var _arrival_column_highlight: ColorRect = null
 var _arrival_side_label: Label = null
 
 @onready var board_container: Control = %BoardContainer
-@onready var squares_grid: GridContainer = %SquaresGrid
+@onready var squares_grid: Control = %SquaresGrid
 @onready var board_background: ColorRect = $MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/BoardBackground
 @onready var grid_layer: Control = %GridLayer
 @onready var pieces_layer: Control = %PiecesLayer
@@ -167,12 +167,6 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# DEBUG: Log all mouse button events to diagnose web input issue
-	if event is InputEventMouseButton and event.pressed:
-		print("[INPUT] MouseButton pressed: button=%d pos=%s" % [event.button_index, event.position])
-	if event is InputEventScreenTouch:
-		print("[INPUT] ScreenTouch: pressed=%s pos=%s" % [event.pressed, event.position])
-
 	# Handle theme toggle (T key) - for development/testing
 	if event is InputEventKey and event.pressed and event.keycode == KEY_T:
 		_toggle_visual_theme()
@@ -217,7 +211,6 @@ func _input(event: InputEvent) -> void:
 		if game_state and game_state.must_place_piece() and not game_state.is_ai_turn() and not is_remote_turn():
 			# Use actual square positions to determine column (more robust)
 			var col := _get_column_under_cursor()
-			print("[INPUT] Placement attempt: col=%d" % col)
 			if col >= 0 and col < BOARD_SIZE:
 				var is_white := game_state.current_player == Piece.Side.WHITE
 				var target_row := 0 if is_white else 7
@@ -236,8 +229,9 @@ func _input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 
 
+var _dbg_resize_count: int = 0
+
 func _process(delta: float) -> void:
-	# Update action mode timers
 	if game_state:
 		game_state.tick(delta)
 	_update_physics(delta)
@@ -262,42 +256,26 @@ func initialize(state: GameState) -> void:
 	game_state.board.piece_captured.connect(_on_piece_captured)
 	game_state.board.piece_placed.connect(_on_piece_placed)
 	game_state.move_executed.connect(_on_move_executed)
-
-	# Action mode signals
 	game_state.action_piece_auto_placed.connect(_on_action_piece_auto_placed)
 	game_state.action_piece_bumped_off.connect(_on_action_piece_bumped_off)
 
-	# Setup action mode UI if needed
 	if game_state.game_mode == GameState.GameMode.ACTION:
 		_setup_action_mode_ui()
 
-	# Wait for layout to complete before positioning
 	await get_tree().process_frame
 	await get_tree().process_frame
-
-	# Initial display
 	_refresh_pieces()
 	_update_turn_display()
 	_update_arrival_display()
 	_clear_history_display()
-
-	# Play game start sound
 	if AudioManager:
 		AudioManager.play_game_start()
-
-	# Check if AI goes first
 	if game_state.is_ai_turn():
 		_on_ai_turn_started()
 
 
 func _create_board() -> void:
-	squares_grid.columns = BOARD_SIZE
-
-	# Ensure no separation in GridContainer (can cause position mismatch)
-	squares_grid.add_theme_constant_override("h_separation", 0)
-	squares_grid.add_theme_constant_override("v_separation", 0)
-
-	# Create 8x8 grid of squares
+	# Create 8x8 grid of squares (manually positioned, no GridContainer layout)
 	for row in range(BOARD_SIZE):
 		var row_array: Array = []
 		for col in range(BOARD_SIZE):
@@ -475,7 +453,6 @@ func _board_to_pixel(board_pos: Vector2i) -> Vector2:
 
 
 func _on_square_clicked(board_pos: Vector2i) -> void:
-	print("[INPUT] Square clicked: %s, must_place=%s, is_ai=%s" % [board_pos, game_state.must_place_piece() if game_state else "null", game_state.is_ai_turn() if game_state else "null"])
 	if game_state == null:
 		return
 
@@ -1264,8 +1241,10 @@ func _create_led_placement_indicator(col: int, is_white: bool) -> Control:
 
 func _add_glow_animation(node: Line2D, glow_color: Color) -> void:
 	## Add a pulsing glow animation to a Line2D
+	## Uses a non-looping tween (3 cycles) instead of set_loops() which causes
+	## orphaned infinite tweens on the web build when indicators are freed.
 	node.default_color = glow_color
-	var tween := create_tween().set_loops()
+	var tween := create_tween().set_loops(6)
 	tween.tween_property(node, "modulate:a", 0.5, 0.5).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(node, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
 
@@ -1375,34 +1354,26 @@ func _clear_placement_highlights() -> void:
 	_clear_legal_move_indicators()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
-		_on_resized()
-
-
-var _force_next_resize: bool = false  # Flag to force resize even if size unchanged
+var _force_next_resize: bool = false
 
 
 func _on_resized() -> void:
-	# Recalculate square size based on available space
+	_dbg_resize_count += 1
+
 	if board_container == null or squares_grid == null:
 		return
 
 	var available := mini(board_container.size.x, board_container.size.y)
 
-	# Skip if available size is too small (layout not ready)
 	if available < 100:
 		return
 
 	var new_square_size: float = available / BOARD_SIZE
-
-	# Calculate new board position
 	var grid_size: float = new_square_size * BOARD_SIZE
 	var offset_x: float = maxf(0, (board_container.size.x - grid_size) / 2)
 	var offset_y: float = maxf(0, (board_container.size.y - grid_size) / 2)
 	var new_board_pos := Vector2(offset_x, offset_y)
 
-	# Check if anything actually changed (size OR position)
 	var size_changed := absf(new_square_size - square_size) >= 0.1
 	var pos_changed := squares_grid.position.distance_to(new_board_pos) >= 0.1
 	var force := _force_next_resize
@@ -1413,13 +1384,16 @@ func _on_resized() -> void:
 
 	square_size = new_square_size
 
-	# Update square sizes
-	for row in squares:
-		for square in row:
-			square.custom_minimum_size = Vector2(square_size, square_size)
+	# Position squares
+	for row_idx in range(BOARD_SIZE):
+		for col_idx in range(BOARD_SIZE):
+			var square = squares[row_idx][col_idx]
+			square.position = Vector2(col_idx * square_size, row_idx * square_size)
+			square.size = Vector2(square_size, square_size)
 
-	# Position all layers
+	# Position containers and layers
 	squares_grid.position = new_board_pos
+	squares_grid.size = Vector2(grid_size, grid_size)
 	if grid_layer:
 		grid_layer.position = new_board_pos
 	pieces_layer.position = new_board_pos
@@ -1427,40 +1401,34 @@ func _on_resized() -> void:
 	arrows_layer.position = new_board_pos
 	arrival_layer.position = new_board_pos
 
-	# Update grid lines for new size
+	# Grid lines
 	var theme := ThemeManager.get_current_visual_theme() if ThemeManager else null
 	if theme:
 		_update_grid_lines(theme)
 
-	# Resize and position the background to match the board
+	# Background
 	if board_background:
 		board_background.position = new_board_pos
 		board_background.size = Vector2(grid_size, grid_size)
 
-	# Always reposition pieces when layout changes
+	# Piece sprites
 	for pos in piece_sprites:
 		var sprite = piece_sprites[pos]
 		sprite.size = Vector2(square_size, square_size)
-		sprite.custom_minimum_size = Vector2(square_size, square_size)
 		sprite.position = _board_to_pixel(pos)
 
 
 func _initial_layout_setup() -> void:
-	## Called after _ready to set up initial layout (deferred for correct viewport size)
-	# Wait one more frame for viewport to fully initialize (important for web/iOS)
 	await get_tree().process_frame
-	_check_mobile_mode(true)  # Force update on initial setup
+	_check_mobile_mode(true)
+	_force_next_resize = true
 	_on_resized()
 
 
 func _on_viewport_size_changed() -> void:
-	## Handle viewport size changes (including orientation changes)
 	_check_mobile_mode(false)
-	# Force resize after orientation changes to ensure pieces are repositioned
 	_force_next_resize = true
-	# Always trigger resize on viewport change to handle orientation changes
-	# even when mobile mode doesn't change (e.g., portrait to landscape on phone)
-	call_deferred("_deferred_resize_update")
+	_schedule_deferred_resize()
 
 
 func _check_mobile_mode(force_update: bool = false) -> void:
@@ -1480,7 +1448,6 @@ func _check_mobile_mode(force_update: bool = false) -> void:
 
 
 func _update_layout() -> void:
-	## Update UI layout for mobile or desktop mode
 	if margin_container == null:
 		return
 
@@ -1539,21 +1506,26 @@ func _update_layout() -> void:
 		if history_panel:
 			history_panel.visible = true
 
-	# Force layout recalculation after layout settles
-	# Use multiple deferred calls to ensure layout has fully updated
-	call_deferred("_on_resized")
-	call_deferred("_deferred_resize_update")
+	# Force layout recalculation after a short delay
+	_force_next_resize = true
+	_schedule_deferred_resize()
 
 
-func _deferred_resize_update() -> void:
-	## Called after layout changes to ensure pieces are correctly positioned
-	## This runs after the first deferred _on_resized, giving layout time to settle
-	## Wait multiple frames for layout to fully settle (important for orientation changes)
-	for i in range(3):
-		await get_tree().process_frame
-	_on_resized()
-	# One more update after additional settling
-	await get_tree().process_frame
+var _resize_timer: Timer = null
+
+func _schedule_deferred_resize() -> void:
+	## Debounced resize using a Timer (avoids await process_frame issues on web)
+	if _resize_timer == null:
+		_resize_timer = Timer.new()
+		_resize_timer.one_shot = true
+		_resize_timer.wait_time = 0.1
+		_resize_timer.timeout.connect(_do_deferred_resize)
+		add_child(_resize_timer)
+	_resize_timer.start()
+
+
+func _do_deferred_resize() -> void:
+	_force_next_resize = true
 	_on_resized()
 
 
@@ -1821,30 +1793,30 @@ func _get_input_position() -> Vector2:
 
 func _get_column_under_cursor() -> int:
 	## Find which column the cursor is over by checking actual square global positions
-	## Returns -1 if cursor is outside all columns
+	## Returns -1 if cursor is outside the board area
 	var cursor_global: Vector2
 	if touch_active:
 		cursor_global = last_touch_position
 	else:
 		cursor_global = get_global_mouse_position()
 
+	# First check if cursor is within the board's horizontal bounds
+	if squares.is_empty() or squares[0].is_empty():
+		return -1
+	var first_square: Control = squares[0][0]
+	var last_square: Control = squares[0][BOARD_SIZE - 1]
+	var board_left: float = first_square.get_global_rect().position.x
+	var board_right: float = last_square.get_global_rect().position.x + last_square.get_global_rect().size.x
+	if cursor_global.x < board_left or cursor_global.x >= board_right:
+		return -1
+
 	# Check each column by looking at the first row's squares
 	for col in range(BOARD_SIZE):
-		var square: Control = squares[0][col]  # Any row works since columns are aligned
+		var square: Control = squares[0][col]
 		var square_rect: Rect2 = square.get_global_rect()
-		# Extend the rect vertically to cover the full board height plus arrival areas
-		square_rect.position.y -= square_size * 2  # Extend above
-		square_rect.size.y = square_size * (BOARD_SIZE + 4)  # Cover full height plus margins
 		if cursor_global.x >= square_rect.position.x and cursor_global.x < square_rect.position.x + square_rect.size.x:
 			return col
 
-	# Cursor is outside - determine closest column
-	var first_square = squares[0][0]
-	var last_square = squares[0][BOARD_SIZE - 1]
-	if cursor_global.x < first_square.get_global_rect().position.x:
-		return 0
-	elif cursor_global.x >= last_square.get_global_rect().position.x:
-		return BOARD_SIZE - 1
 	return -1
 
 
@@ -1927,7 +1899,6 @@ func _on_ai_turn_started() -> void:
 
 
 func _on_new_game_pressed() -> void:
-	print("[INPUT] New Game button pressed!")
 	new_game_requested.emit()
 
 

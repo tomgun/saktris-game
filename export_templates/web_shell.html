@@ -101,12 +101,34 @@ $GODOT_HEAD_INCLUDE
 			Your browser does not support JavaScript.
 		</noscript>
 
+		<div id="cache-btn" style="position:fixed;bottom:4px;right:4px;z-index:9999;">
+			<button onclick="clearCacheAndReload()" style="font-size:10px;padding:2px 6px;opacity:0.4;background:#222;color:#aaa;border:1px solid #444;cursor:pointer;border-radius:3px;font-family:monospace;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">&#x21bb; Clear Cache</button>
+		</div>
+
 		<div id="status">
 			<img id="status-splash" class="show-image--false fullsize--true use-filter--true" src="$GODOT_SPLASH" alt="">
 			<progress id="status-progress"></progress>
 			<div id="status-notice"></div>
 		</div>
 
+		<script>
+function clearCacheAndReload() {
+	if ('serviceWorker' in navigator) {
+		Promise.all([
+			caches.keys().then(function(names) {
+				return Promise.all(names.map(function(n) { return caches.delete(n); }));
+			}),
+			navigator.serviceWorker.getRegistrations().then(function(regs) {
+				return Promise.all(regs.map(function(r) { return r.unregister(); }));
+			})
+		]).then(function() {
+			window.location.reload(true);
+		});
+	} else {
+		window.location.reload(true);
+	}
+}
+		</script>
 		<script src="index.js"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
@@ -122,14 +144,10 @@ document.addEventListener('contextmenu', function(e) {
 // Prevent browser handling of right-click on canvas
 const canvas = document.getElementById('canvas');
 canvas.addEventListener('mousedown', function(e) {
-	if (e.button === 2) {
-		e.preventDefault();
-	}
+	if (e.button === 2) { e.preventDefault(); }
 });
 canvas.addEventListener('mouseup', function(e) {
-	if (e.button === 2) {
-		e.preventDefault();
-	}
+	if (e.button === 2) { e.preventDefault(); }
 });
 
 (function () {
