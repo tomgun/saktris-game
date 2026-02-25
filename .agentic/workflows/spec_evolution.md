@@ -4,6 +4,39 @@
 
 ---
 
+## Starting Rough Is OK
+
+2-3 bullet points answering "What would success look like?" is a valid starting spec.
+
+**The flow**: rough spec → implement → discover → `[Discovered]` markers → human reviews evolved spec
+
+| Profile | Where criteria live | When to formalize |
+|---------|-------------------|-------------------|
+| **Discovery** | WIP.md, JOURNAL.md, or inline | Upgrade to Formal when persistence needed |
+| **Formal** | `spec/acceptance/F-####.md` | Can start rough, evolve during implementation |
+
+Rough specs lower the barrier to thinking about success criteria — the alternative (no criteria at all) is worse than imperfect criteria.
+
+### Discovery → Formal Graduation
+
+Discovery projects keep criteria informally (WIP.md, JOURNAL.md, conversation). When a project needs persistent, cross-session specs — criteria that survive context loss and agent handoffs — it's time to graduate to Formal.
+
+**Signs you need Formal**:
+- Multiple agents working on the same project
+- Criteria keep getting rediscovered across sessions
+- Features are complex enough that "what does done look like?" needs a persistent answer
+- Human wants to review/approve criteria separately from code
+
+**How to graduate**:
+1. Set `Profile: formal` in STACK.md
+2. Create `spec/FEATURES.md` and `spec/acceptance/` directory
+3. Move existing criteria from JOURNAL.md/WIP.md into acceptance files
+4. Existing rough bullets become the starting spec — no need to rewrite
+
+The graduation is a one-way door: once specs are formalized, they become the source of truth. But the formalized specs can still be rough — "2-3 bullet points in an acceptance file" is valid Formal.
+
+---
+
 ## Why Specs Evolve
 
 During implementation, you will discover:

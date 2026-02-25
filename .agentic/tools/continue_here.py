@@ -3,7 +3,7 @@
 ⚠️ DEPRECATED: This tool is deprecated as of v0.12.0
 
 The functionality is now covered by:
-- STATUS.md: Contains "Project Phase" section (discovery | building)
+- STATUS.md: Contains current focus and project state
 - session_start.md checklist: Guides agents to read project state
 - WIP.md: Handles interrupted work detection
 
@@ -133,13 +133,19 @@ def get_active_pipelines(pipeline_dir):
 
 
 def detect_mode(project_root):
-    """Detect if project is Core or Core+PM mode."""
-    stack_file = os.path.join(project_root, '.agentic', 'STACK.md')
-    stack_content = read_file(stack_file)
-    
-    if 'profile: core+product' in stack_content.lower() or 'profile: core+pm' in stack_content.lower():
-        return 'Core+PM'
-    return 'Core'
+    """Detect if project is Discovery or Formal mode."""
+    try:
+        _lib_dir = str(Path(os.path.abspath(__file__)).parent.parent / "lib")
+        if _lib_dir not in sys.path:
+            sys.path.insert(0, _lib_dir)
+        from settings import get_setting
+        profile = get_setting(Path(project_root), "profile", "discovery")
+        return "Formal" if profile == "formal" else "Discovery"
+    except Exception:
+        # Fallback
+        if os.path.isdir(os.path.join(project_root, 'spec')):
+            return 'Formal'
+        return 'Discovery'
 
 
 def generate_continue_here(project_root, output_path=None):
@@ -148,10 +154,12 @@ def generate_continue_here(project_root, output_path=None):
     # Detect mode
     mode = detect_mode(project_root)
     
-    # Read source files
-    journal_path = os.path.join(project_root, 'JOURNAL.md')
+    # Read source files - JOURNAL.md with fallback
+    journal_path = os.path.join(project_root, '.agentic-journal', 'JOURNAL.md')
+    if not os.path.exists(journal_path):
+        journal_path = os.path.join(project_root, 'JOURNAL.md')
     status_path = os.path.join(project_root, 'STATUS.md')
-    product_path = os.path.join(project_root, 'PRODUCT.md')
+    product_path = os.path.join(project_root, 'OVERVIEW.md')
     human_needed_path = os.path.join(project_root, 'HUMAN_NEEDED.md')
     features_path = os.path.join(project_root, 'spec', 'FEATURES.md')
     pipeline_dir = os.path.join(project_root, '.agentic', 'pipeline')
@@ -160,12 +168,12 @@ def generate_continue_here(project_root, output_path=None):
     status_content = read_file(status_path)
     product_content = read_file(product_path)
     human_needed_content = read_file(human_needed_path)
-    features_content = read_file(features_path) if mode == 'Core+PM' else ""
+    features_content = read_file(features_path) if mode == 'Formal' else ""
     
     # Extract information
     recent_work = get_recent_journal_entries(journal_content)
-    active_features = get_active_features(features_content) if mode == 'Core+PM' else []
-    active_pipelines = get_active_pipelines(pipeline_dir) if mode == 'Core+PM' else []
+    active_features = get_active_features(features_content) if mode == 'Formal' else []
+    active_pipelines = get_active_pipelines(pipeline_dir) if mode == 'Formal' else []
     has_blockers = len(human_needed_content.strip()) > 100  # Rough check for content beyond template
     
     # Determine primary status document
@@ -196,11 +204,11 @@ def generate_continue_here(project_root, output_path=None):
     if current_focus:
         output.append(current_focus)
     else:
-        output.append("*No explicit 'Current Focus' found in STATUS.md or PRODUCT.md.*")
+        output.append("*No explicit 'Current Focus' found in STATUS.md or OVERVIEW.md.*")
     output.append("")
     
     # Section 2: Active Work
-    if mode == 'Core+PM' and active_features:
+    if mode == 'Formal' and active_features:
         output.append("## Active Features")
         output.append("")
         for feature in active_features:
@@ -208,7 +216,7 @@ def generate_continue_here(project_root, output_path=None):
             output.append(f"- **{feature['id']}** ({priority}): {feature.get('title', 'Unknown')}")
         output.append("")
     
-    if mode == 'Core+PM' and active_pipelines:
+    if mode == 'Formal' and active_pipelines:
         output.append("## Active Pipelines")
         output.append("")
         for pipeline in active_pipelines:
@@ -243,8 +251,8 @@ def generate_continue_here(project_root, output_path=None):
         output.append("2. **Continue active pipelines** (see above)")
     if active_features:
         output.append("3. **Advance active features** (see above)")
-    output.append("- Review `STATUS.md` or `PRODUCT.md` for overall project state")
-    if mode == 'Core+PM':
+    output.append("- Review `STATUS.md` or `OVERVIEW.md` for overall project state")
+    if mode == 'Formal':
         output.append("- Check `spec/FEATURES.md` for planned work")
     output.append("- Run `bash .agentic/tools/version_check.sh` to ensure framework is up-to-date")
     output.append("")
@@ -252,12 +260,12 @@ def generate_continue_here(project_root, output_path=None):
     # Section 6: Key Files
     output.append("## Key Files to Review")
     output.append("")
-    if mode == 'Core+PM':
+    if mode == 'Formal':
         output.append("- `spec/FEATURES.md` - Feature registry")
-    output.append("- `STATUS.md` or `PRODUCT.md` - Current project state")
+    output.append("- `STATUS.md` or `OVERVIEW.md` - Current project state")
     output.append("- `JOURNAL.md` - Work history")
     output.append("- `HUMAN_NEEDED.md` - Blockers & decisions")
-    if mode == 'Core+PM':
+    if mode == 'Formal':
         output.append("- `.agentic/pipeline/` - Agent handoffs")
     output.append("")
     

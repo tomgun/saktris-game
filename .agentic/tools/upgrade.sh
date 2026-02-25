@@ -152,6 +152,8 @@ DIRS_TO_REPLACE=(
   "prompts"
   "schemas"
   "token_efficiency"
+  "lib"
+  "presets"
 )
 
 FILES_TO_REPLACE=(
@@ -161,7 +163,6 @@ FILES_TO_REPLACE=(
   "MANUAL_OPERATIONS.md"
   "DIRECT_EDITING.md"
   "DEVELOPER_GUIDE.md"
-  "FRAMEWORK_DEVELOPMENT.md"
   "PRINCIPLES.md"
 )
 
@@ -262,16 +263,38 @@ fi
 
 echo ""
 
+# Step 5c: Regenerate instruction files from updated templates
+echo -e "${BLUE}[5c/11] Regenerating instruction files${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would regenerate instruction files (CLAUDE.md, .cursorrules, copilot, codex)"
+elif [[ -x "$TARGET_PROJECT_DIR/.agentic/tools/setup-agent.sh" ]]; then
+  bash "$TARGET_PROJECT_DIR/.agentic/tools/setup-agent.sh" all 2>/dev/null || true
+  echo -e "  ${GREEN}✓${NC} Instruction files regenerated (CLAUDE.md, .cursorrules, copilot, codex)"
+else
+  echo -e "  ${YELLOW}⚠ setup-agent.sh not found, skipping${NC}"
+fi
+
+echo ""
+
 # Step 6: Migrate STATUS.md for Core profile
 echo -e "${BLUE}[6/7] Checking STATUS.md migration${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Detect profile
-PROFILE="core"
-if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
-  PROFILE_LINE=$(grep -E "^\s*-\s*Profile:" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null || echo "")
-  if [[ "$PROFILE_LINE" == *"core+product"* ]]; then
-    PROFILE="core+product"
+# Detect profile using settings library (copied in step 5)
+PROFILE="discovery"
+if [[ -f "$TARGET_PROJECT_DIR/.agentic/lib/settings.sh" ]]; then
+  source "$TARGET_PROJECT_DIR/.agentic/lib/settings.sh"
+  PROFILE="$(get_setting "profile" "discovery")"
+else
+  # Fallback for upgrading from pre-settings versions
+  if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+    PROFILE_LINE=$(grep -E "^\s*-\s*[Pp]rofile:" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null || echo "")
+    case "$PROFILE_LINE" in
+      *formal*) PROFILE="formal" ;;
+      *discovery*) PROFILE="discovery" ;;
+    esac
   fi
 fi
 
@@ -292,18 +315,222 @@ else
   echo -e "  ${GREEN}✓${NC} STATUS.md already exists"
 fi
 
-# Check if STATUS.md has Project Phase section (new requirement)
-if [[ -f "$TARGET_PROJECT_DIR/STATUS.md" ]]; then
-  if ! grep -q "## Project Phase" "$TARGET_PROJECT_DIR/STATUS.md" 2>/dev/null; then
-    echo -e "  ${YELLOW}⚠${NC} STATUS.md missing Project Phase section (see template for format)"
-    STATUS_MD_NEEDS_UPDATE="yes"
+# Cleanup: Remove deprecated status.json backend (removed in v0.25.0)
+rm -f "$TARGET_PROJECT_DIR/.agentic/state/status.json" 2>/dev/null
+rmdir "$TARGET_PROJECT_DIR/.agentic/state" 2>/dev/null || true
+
+echo ""
+
+# Step 6b: Create missing state files from config
+echo -e "${BLUE}[6b/11] Checking state files${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would create any missing state files"
+else
+  STATE_FILES_CONF="$TARGET_PROJECT_DIR/.agentic/init/state-files.conf"
+  if [[ -f "$STATE_FILES_CONF" ]]; then
+    CREATED_COUNT=0
+    while IFS=: read -r dst_rel src_rel file_profile; do
+      [[ "$dst_rel" =~ ^#|^[[:space:]]*$ ]] && continue
+      [[ "$file_profile" == "formal" && "$PROFILE" != "formal" ]] && continue
+      dst="$TARGET_PROJECT_DIR/$dst_rel"
+      src="$TARGET_PROJECT_DIR/$src_rel"
+      if [[ ! -f "$dst" ]] && [[ -f "$src" ]]; then
+        mkdir -p "$(dirname "$dst")"
+        cp "$src" "$dst"
+        if head -1 "$dst" | grep -qi "(Template)"; then
+          sed -i.bak '1s/ (Template)//g; 1s/(Template)//g' "$dst"
+          rm -f "$dst.bak" 2>/dev/null || true
+        fi
+        echo -e "  ${GREEN}✓${NC} Created $dst_rel"
+        CREATED_COUNT=$((CREATED_COUNT + 1))
+      fi
+    done < "$STATE_FILES_CONF"
+    if [[ $CREATED_COUNT -eq 0 ]]; then
+      echo -e "  ${GREEN}✓${NC} All state files present"
+    fi
+  else
+    echo -e "  ${YELLOW}⚠${NC} state-files.conf not found, skipping"
   fi
 fi
 
 echo ""
 
-# Step 7: Verification (now 7/9)
-echo -e "${BLUE}[7/9] Running verification${NC}"
+# Step 7: Add new configuration sections (v0.16.0+)
+echo -e "${BLUE}[7/11] Adding new configuration sections${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would add new configuration sections"
+else
+  # Add complexity_limits section to STACK.md if missing
+  if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+    if ! grep -q "## Complexity limits" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null; then
+      echo "  Adding complexity limits section to STACK.md..."
+      cat >> "$TARGET_PROJECT_DIR/STACK.md" <<'COMPLEXITY_EOF'
+
+## Complexity limits
+- max_files_per_commit: 10
+- max_added_lines: 500
+- max_code_file_length: 500
+COMPLEXITY_EOF
+      echo -e "${GREEN}  ✓ Added complexity limits section${NC}"
+    else
+      echo -e "  ${GREEN}✓${NC} Complexity limits section already exists"
+    fi
+
+    # Check for test commands
+    HAS_TEST=$(grep -iE "^[- ]*test:" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null || true)
+    HAS_TEST_FAST=$(grep -iE "test_fast:" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null || true)
+
+    if [[ -z "$HAS_TEST" ]] && [[ -z "$HAS_TEST_FAST" ]]; then
+      echo -e "  ${YELLOW}⚠${NC} No test commands in STACK.md"
+      echo "    Consider adding:"
+      echo "      - test: <your full test suite command>"
+      echo "      - test_fast: <quick tests for pre-commit>"
+    elif [[ -n "$HAS_TEST" ]] && [[ -z "$HAS_TEST_FAST" ]]; then
+      echo -e "  ${YELLOW}⚠${NC} Found 'test:' but no 'test_fast:'"
+      echo "    Consider adding a faster test for pre-commit checks"
+    else
+      echo -e "  ${GREEN}✓${NC} Test commands configured"
+    fi
+  fi
+
+  # Add frontmatter to acceptance files missing it
+  if [[ -d "$TARGET_PROJECT_DIR/spec/acceptance" ]]; then
+    UPDATED_ACC=0
+    for acc_file in "$TARGET_PROJECT_DIR"/spec/acceptance/F-*.md; do
+      if [[ -f "$acc_file" ]]; then
+        # Check if file already has frontmatter
+        if ! head -1 "$acc_file" | grep -q "^---"; then
+          FEATURE_ID=$(basename "$acc_file" .md)
+          echo "  Adding frontmatter to $FEATURE_ID..."
+
+          # Create temp file with frontmatter prepended
+          {
+            echo "---"
+            echo "feature: $FEATURE_ID"
+            echo "status: shipped"
+            echo "validation: []  # TODO: Add validation commands"
+            echo "---"
+            echo ""
+            cat "$acc_file"
+          } > "${acc_file}.tmp"
+          mv "${acc_file}.tmp" "$acc_file"
+
+          UPDATED_ACC=$((UPDATED_ACC + 1))
+        fi
+      fi
+    done
+
+    if [[ $UPDATED_ACC -gt 0 ]]; then
+      echo -e "  ${GREEN}✓${NC} Updated $UPDATED_ACC acceptance file(s) with frontmatter"
+    else
+      echo -e "  ${GREEN}✓${NC} All acceptance files have frontmatter"
+    fi
+  fi
+
+  # Add ## Settings section to STACK.md if missing (v0.27.0+)
+  if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+    if ! grep -q "^## Settings" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null; then
+      echo "  Adding ## Settings section to STACK.md..."
+      # Determine current profile for preset defaults
+      SETTINGS_PROFILE="$PROFILE"
+      cat >> "$TARGET_PROJECT_DIR/STACK.md" <<SETTINGS_EOF
+
+## Settings
+<!-- Use \`ag set <key> <value>\` to change, \`ag set --show\` to view all. -->
+- profile: ${SETTINGS_PROFILE}
+SETTINGS_EOF
+      echo -e "  ${GREEN}✓${NC} Added ## Settings section (profile: ${SETTINGS_PROFILE})"
+    else
+      echo -e "  ${GREEN}✓${NC} ## Settings section already exists"
+    fi
+
+    # Populate missing explicit settings from profile defaults (F-0141)
+    PRESETS_FILE="$NEW_FRAMEWORK_DIR/.agentic/presets/profiles.conf"
+    if [[ -f "$PRESETS_FILE" ]]; then
+      settings_added=0
+      # Find ## Settings section boundaries (start line to next ## heading)
+      settings_start=$(grep -n "^## Settings" "$TARGET_PROJECT_DIR/STACK.md" | head -1 | cut -d: -f1)
+      settings_end=$(awk -v start="$settings_start" 'NR > start && /^## [^#]/ { print NR; exit }' "$TARGET_PROJECT_DIR/STACK.md")
+      [[ -z "$settings_end" ]] && settings_end=$(wc -l < "$TARGET_PROJECT_DIR/STACK.md")
+
+      while IFS='=' read -r preset_key preset_value; do
+        [[ "$preset_key" =~ ^#|^$ ]] && continue
+        [[ -z "$preset_key" ]] && continue
+        if [[ "$preset_key" =~ ^${PROFILE}\.(.*) ]]; then
+          sname="${BASH_REMATCH[1]}"
+          # Only add if setting line doesn't exist yet (don't overwrite)
+          if ! grep -q "^- ${sname}:" "$TARGET_PROJECT_DIR/STACK.md"; then
+            # Find the last setting line within ## Settings section only
+            last_setting_line=$(sed -n "${settings_start},${settings_end}p" "$TARGET_PROJECT_DIR/STACK.md" | grep -n "^- " | tail -1 | cut -d: -f1)
+            if [[ -n "$last_setting_line" ]]; then
+              # Convert section-relative line to absolute line number
+              abs_line=$((settings_start + last_setting_line - 1))
+              sed -i.bak "${abs_line}a\\
+- ${sname}: ${preset_value}" "$TARGET_PROJECT_DIR/STACK.md"
+              rm -f "$TARGET_PROJECT_DIR/STACK.md.bak" 2>/dev/null || true
+              # Adjust end boundary since we inserted a line
+              settings_end=$((settings_end + 1))
+              settings_added=$((settings_added + 1))
+            fi
+          fi
+        fi
+      done < "$PRESETS_FILE"
+      if [[ $settings_added -gt 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} Added $settings_added missing explicit settings for ${PROFILE} profile"
+      fi
+    fi
+  fi
+fi
+
+echo ""
+
+# Step 7b: Git hook configuration
+echo -e "${BLUE}[7b/11] Configuring git hooks${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would configure git hooks"
+else
+  # Configure core.hooksPath
+  if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+    CURRENT_HOOKS_PATH=$(git config core.hooksPath 2>/dev/null || echo "")
+    if [[ "$CURRENT_HOOKS_PATH" != ".agentic/hooks" ]]; then
+      git config core.hooksPath .agentic/hooks
+      echo -e "  ${GREEN}✓${NC} Set core.hooksPath to .agentic/hooks"
+    else
+      echo -e "  ${GREEN}✓${NC} core.hooksPath already configured"
+    fi
+
+    # Clean up stale file-copied hook from old scaffold.sh
+    if [[ -f "$TARGET_PROJECT_DIR/.git/hooks/pre-commit" ]]; then
+      if grep -q "validate_specs" "$TARGET_PROJECT_DIR/.git/hooks/pre-commit" 2>/dev/null; then
+        rm -f "$TARGET_PROJECT_DIR/.git/hooks/pre-commit"
+        echo -e "  ${GREEN}✓${NC} Removed stale .git/hooks/pre-commit (replaced by core.hooksPath)"
+      fi
+    fi
+  fi
+
+  # Migrate pre_commit_hook: yes → fast in STACK.md
+  if [[ -f "$TARGET_PROJECT_DIR/STACK.md" ]]; then
+    if grep -qE "^[- ]*pre_commit_hook:[[:space:]]*yes" "$TARGET_PROJECT_DIR/STACK.md" 2>/dev/null; then
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' -E 's/^([- ]*pre_commit_hook:[[:space:]]*)yes/\1fast  # fast | full | no/' "$TARGET_PROJECT_DIR/STACK.md"
+      else
+        sed -i -E 's/^([- ]*pre_commit_hook:[[:space:]]*)yes/\1fast  # fast | full | no/' "$TARGET_PROJECT_DIR/STACK.md"
+      fi
+      echo -e "  ${GREEN}✓${NC} Migrated pre_commit_hook: yes → fast"
+    fi
+  fi
+fi
+
+echo ""
+
+# Step 8: Verification (was 7/9)
+echo -e "${BLUE}[8/11] Running verification${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ "$DRY_RUN" == "yes" ]]; then
@@ -359,8 +586,29 @@ fi
 
 echo ""
 
-# Step 8: Update STACK.md with new version (consolidated, robust pattern matching)
-echo -e "${BLUE}[8/9] Updating STACK.md with new framework version${NC}"
+# Step 8b: Run sync check
+echo -e "${BLUE}[8b/11] Running sync check${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "  [DRY RUN] Would run sync --check"
+elif [[ -f "$TARGET_PROJECT_DIR/.agentic/tools/sync.sh" ]]; then
+  SYNC_OUTPUT=$(cd "$TARGET_PROJECT_DIR" && bash .agentic/tools/sync.sh --check 2>&1) || true
+  if [[ -n "$SYNC_OUTPUT" ]]; then
+    echo -e "  ${YELLOW}⚠ Sync check found drift (expected after upgrade):${NC}"
+    echo "$SYNC_OUTPUT" | head -15 | sed 's/^/    /'
+    echo "    Run \`bash .agentic/tools/sync.sh\` after upgrade to auto-fix"
+  else
+    echo -e "  ${GREEN}✓${NC} Sync check passed"
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC} sync.sh not found, skipping"
+fi
+
+echo ""
+
+# Step 9: Update STACK.md with new version (consolidated, robust pattern matching)
+echo -e "${BLUE}[9/11] Updating STACK.md with new framework version${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Use whichever version variable is set (FRAMEWORK_VERSION or NEW_VERSION as fallback)
@@ -424,8 +672,8 @@ else
   echo -e "  ${YELLOW}⚠${NC} Could not update .agentic/VERSION (version unknown)"
 fi
 
-# Step 9: Create upgrade marker for agent to pick up at next session
-echo -e "${BLUE}[9/9] Creating upgrade marker${NC}"
+# Step 10: Create upgrade marker for agent to pick up at next session
+echo -e "${BLUE}[10/11] Creating upgrade marker${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 debug "Creating upgrade marker at: $TARGET_PROJECT_DIR/.agentic/.upgrade_pending"
@@ -449,7 +697,12 @@ declare -a FEATURE_REGISTRY=(
   "0.5.0:Sub-agent setup:bash .agentic/tools/setup-agent.sh cursor-agents:Specialized agents for different tasks"
   "0.5.0:Multi-agent pipeline:bash .agentic/tools/setup-agent.sh pipeline:Parallel work coordination"
   "0.5.0:Tool setup:bash .agentic/tools/setup-agent.sh all:Auto-loaded instructions"
-  "0.12.0:STATUS.md consolidation:See STATUS.md:STATUS.md now required for both Core and Core+PM profiles"
+  "0.12.0:STATUS.md consolidation:See STATUS.md:STATUS.md now required for both Discovery and Formal profiles"
+  "0.18.0:LLM behavioral tests:ag test llm --help:Run behavioral tests in any AI tool (Claude, Cursor, Codex, Copilot)"
+  "0.18.0:Plan-review loop:ag plan F-XXXX:Iterative planning with critical review before implementation"
+  "0.26.0:Profile rename:See STACK.md:Profiles renamed: Core→Discovery, Core+PM→Formal"
+  "0.33.0:Instruction file auto-refresh:Automatic:CLAUDE.md, .cursorrules, copilot, codex regenerated on upgrade"
+  "0.33.0:DRY state file config:See .agentic/init/state-files.conf:Single source of truth for required state files"
 )
 
 # Filter features based on version range
@@ -464,10 +717,10 @@ done
 
 # Only add NEW FEATURES section if there are actually new features
 if [[ -n "$NEW_FEATURES" ]]; then
-  NEW_FEATURES_SECTION="7. [ ] **NEW FEATURES CHECK**: Ask user about new features added since ${FROM_VER}:
-${NEW_FEATURES}8. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
+  NEW_FEATURES_SECTION="8. [ ] **NEW FEATURES CHECK**: Ask user about new features added since ${FROM_VER}:
+${NEW_FEATURES}9. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
 else
-  NEW_FEATURES_SECTION="7. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
+  NEW_FEATURES_SECTION="8. [ ] Delete this file: \\\`rm .agentic/.upgrade_pending\\\`"
 fi
 
 if [[ ! -d "$TARGET_PROJECT_DIR/.agentic" ]]; then
@@ -492,8 +745,9 @@ else
 1. ✅ Read this file (you're doing it now)
 2. [ ] If "STACK.md updated: no" above → manually update: \`- Version: ${VERSION_TO_USE:-unknown}\`
 3. [ ] Read .agentic/START_HERE.md (5 min) for new workflows
-4. [ ] Validate specs: \`python3 .agentic/tools/validate_specs.py\`
-5. [ ] Review CHANGELOG for ${VERSION_TO_USE:-unknown} changes (see link below)
+4. [ ] Re-read .agentic/init/memory-seed.md and update persistent memory
+5. [ ] Validate specs: \`python3 .agentic/tools/validate_specs.py\`
+6. [ ] Review CHANGELOG for ${VERSION_TO_USE:-unknown} changes (see link below)
 $(echo -e "$NEW_FEATURES_SECTION")
 
 ## Changelog
@@ -518,7 +772,7 @@ echo ""
 
 # Environment check - show what tool files exist, suggest if missing
 echo ""
-echo "[8/8] Environment check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "[11/11] Environment check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [[ -f "$TARGET_PROJECT_DIR/.agentic/tools/check-environment.sh" ]]; then
   cd "$TARGET_PROJECT_DIR"
   bash .agentic/tools/check-environment.sh --list 2>/dev/null || true

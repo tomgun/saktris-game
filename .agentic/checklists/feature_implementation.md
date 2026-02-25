@@ -2,27 +2,15 @@
 
 **Purpose**: Ensure systematic, complete feature implementation with proper tracking.
 
-**Use when**: Implementing any feature (F-#### in Core+Product, or general feature in Core).
+**Use when**: Implementing any feature (F-#### in Formal, or general feature in Core).
 
 ---
 
-## GATE 1: Acceptance Criteria Exist (MANDATORY)
+## Prerequisite: Feature Start Checklist
 
-**🚨 Cannot proceed without acceptance criteria. Rough is OK - will evolve during implementation.**
+**🚨 Complete `.agentic/checklists/feature_start.md` FIRST** — it covers acceptance criteria, scope check, delegation decisions, and context handoff. Do not start implementation without passing those gates.
 
-- [ ] **Acceptance criteria MUST exist before ANY code is written**
-  - Core+PM: `spec/acceptance/F-####.md` file exists with testable criteria
-  - Core: Clear criteria in `PRODUCT.md` or written user request
-  - Rough is OK: "User can log in" is valid to start
-  - **If missing: Create acceptance criteria FIRST or escalate to HUMAN_NEEDED.md**
-  - **DO NOT write code without acceptance criteria**
-
-- [ ] **Understood success condition**
-  - What does "done" look like?
-  - How will we verify it works?
-  - Edge cases can be discovered during implementation
-
-**Note**: Specs WILL evolve during implementation. This is expected. Document discoveries as you go. See [`workflows/spec_evolution.md`](../workflows/spec_evolution.md).
+- [ ] **WIP tracking active** (`ag implement` creates this; manual: `wip.sh start F-#### "desc" "files"`)
 
 ---
 
@@ -35,7 +23,7 @@
   - What are the testable success conditions?
   - Are there edge cases explicitly mentioned?
 
-- [ ] **Check dependencies** (Core+Product only)
+- [ ] **Check dependencies** (Formal only)
   - Look at `Dependencies:` field in `spec/FEATURES.md`
   - Are dependent features complete?
   - If not, implement dependencies first
@@ -118,7 +106,7 @@
   - Test time-based behavior (if applicable)
 
 - [ ] **Add code annotations**
-  - `@feature F-####` on relevant functions (Core+Product)
+  - `@feature F-####` on relevant functions (Formal)
   - `@acceptance A-####` on acceptance test functions
   - `@nfr NFR-####` on NFR-related code
 
@@ -133,7 +121,7 @@
 
 ## After Implementation
 
-### Update Tracking (Core+Product)
+### Update Tracking (Formal)
 
 - [ ] **Update `spec/FEATURES.md`**
   - Status: `planned` → `in_progress` → `shipped`
@@ -145,7 +133,7 @@
 
 ### Update Tracking (Core)
 
-- [ ] **Update `PRODUCT.md`**
+- [ ] **Update `OVERVIEW.md`**
   - Mark implemented capabilities with [x]
   - Update "What works now" section
   - Keep "Known limitations" current
@@ -159,7 +147,7 @@
   - Blockers encountered (if any)
   - What's next
 
-- [ ] **Update `STATUS.md`** (Core+Product)
+- [ ] **Update `STATUS.md`** (Formal)
   - Current session state
   - Completed this session
   - Next immediate step
@@ -190,9 +178,7 @@
 
 ## Before Committing
 
-- [ ] **Use Before Commit Checklist** (`.agentic/checklists/before_commit.md`)
-  - Don't commit without running that checklist
-  - Every commit must pass all checks
+- [ ] **Follow `.agentic/checklists/before_commit.md`** — covers branch check, WIP lock, tests, docs sync, human approval
 
 ---
 
@@ -293,7 +279,7 @@ Blocking: F-0010 implementation
 
 ---
 
-### Problem: Forgot to update FEATURES.md/PRODUCT.md
+### Problem: Forgot to update FEATURES.md/OVERVIEW.md
 
 **Discovered later (before commit)**:
 1. Update it now before committing
@@ -341,6 +327,6 @@ Blocking: F-0010 implementation
 ✅ **Do** small increments (easier to review)  
 ✅ **Do** update tracking in same commit as code  
 ✅ **Do** write tests (TDD: first; Standard: alongside)  
-✅ **Do** keep FEATURES.md/PRODUCT.md accurate  
+✅ **Do** keep FEATURES.md/OVERVIEW.md accurate  
 ✅ **Do** add code annotations
 

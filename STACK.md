@@ -5,7 +5,7 @@
 Purpose: a single source of truth for "how we build and run software here".
 
 ## Agentic framework
-- Version: 0.12.0
+- Version: 0.33.0
 - Profile: core+product
 - Installed: 2026-01-08
 - Source: https://github.com/tomgun/agentic-framework
@@ -90,7 +90,7 @@ Purpose: a single source of truth for "how we build and run software here".
 ## Quality validation
 - quality_checks: enabled
 - profile: game_2d_mobile
-- pre_commit_hook: yes
+- pre_commit_hook: fast  # fast | full | no
 - run_command: bash quality_checks.sh --pre-commit
 - full_suite_command: bash quality_checks.sh --full
 
@@ -100,3 +100,13 @@ Purpose: a single source of truth for "how we build and run software here".
 - max_memory_mb: 200 (mobile)
 - max_apk_size_mb: 50
 - max_html5_size_mb: 30
+
+## Complexity limits
+- max_files_per_commit: 10
+- max_added_lines: 500
+- max_code_file_length: 500
+
+## Settings
+<!-- Use `ag set <key> <value>` to change, `ag set --show` to view all. -->
+- profile: formal
+- feature_tracking: yes- acceptance_criteria: blocking- wip_before_commit: blocking- pre_commit_checks: full- plan_review_enabled: yes- spec_directory: yes- docs_gate: blocking

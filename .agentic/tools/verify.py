@@ -8,44 +8,44 @@ import re
 import sys
 from pathlib import Path
 
+# Import shared settings library
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from settings import get_setting
 
 FEATURE_ID_RE = re.compile(r"\b(F-\d{4})\b")
 NFR_ID_RE = re.compile(r"\b(NFR-\d{4})\b")
 ADR_ID_RE = re.compile(r"\b(ADR-\d{4})\b")
 
 
-def read_profile(root: Path) -> str:
-    """
-    Determine profile.
-
-    - Prefer explicit `Profile:` in STACK.md.
-    - If not present, infer:
-      - If spec/ exists -> core+product
-      - else -> core
-    """
-    stack = root / "STACK.md"
-    if stack.exists():
-        try:
-            md = stack.read_text(encoding="utf-8")
-            m = re.search(r"(?m)^\s*-\s*Profile:\s*([a-z+_-]+)\s*$", md)
-            if m:
-                val = m.group(1).strip()
-                if val in {"core", "core+product"}:
-                    return val
-        except Exception:
-            pass
-
-    if (root / "spec").is_dir():
-        return "core+product"
-    return "core"
-
-
 def core_checks(root: Path) -> list[str]:
-    required = ["STACK.md", "CONTEXT_PACK.md", "STATUS.md", "JOURNAL.md", "HUMAN_NEEDED.md", "AGENTS.md"]
     issues: list[str] = []
-    for p in required:
-        if not (root / p).exists():
-            issues.append(f"Missing {p} (run: bash .agentic/init/scaffold.sh --profile core)")
+    profile = get_setting(root, "profile", "discovery")
+
+    # Read required files from config (single source of truth)
+    config = root / ".agentic" / "init" / "state-files.conf"
+    if config.exists():
+        for line in config.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(":")
+            if len(parts) >= 3:
+                dst, _, file_profile = parts[0], parts[1], parts[2].strip()
+                if file_profile == "formal" and profile != "formal":
+                    continue
+                if not (root / dst).exists():
+                    issues.append(f"Missing {dst} (run: bash .agentic/init/scaffold.sh)")
+    else:
+        # Fallback: hardcoded list if config missing
+        for p in ["STACK.md", "CONTEXT_PACK.md", "STATUS.md", "HUMAN_NEEDED.md", "AGENTS.md"]:
+            if not (root / p).exists():
+                issues.append(f"Missing {p}")
+
+    # Handle JOURNAL.md legacy location fallback
+    if any("JOURNAL.md" in i for i in issues):
+        if (root / "JOURNAL.md").exists():
+            issues = [i for i in issues if not i.startswith("Missing .agentic-journal/JOURNAL.md")]
+
     return issues
 
 
@@ -192,14 +192,15 @@ def read_test_command(root: Path) -> str | None:
 
 def main() -> int:
     root = Path.cwd()
-    profile = read_profile(root)
+    profile = get_setting(root, "profile", "discovery")
     all_issues = []
     
     print("=== agentic verify ===\n")
     print(f"Profile: {profile}\n")
 
-    if profile == "core":
-        print("Core profile: skipping Product Management validations (spec/).\n")
+    ft = get_setting(root, "feature_tracking", "no")
+    if ft != "yes":
+        print("Feature tracking off: skipping formal validations (spec/).\n")
         core_issues = core_checks(root)
         if core_issues:
             print(f"Found {len(core_issues)} issue(s):")

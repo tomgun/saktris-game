@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# UserPromptSubmit.sh: Auto-inject .continue-here.md if available
+# UserPromptSubmit.sh: Phase-aware verification hook
 #
 # This hook runs before Claude processes each user prompt.
-# It automatically adds .continue-here.md to context if the file exists
-# and hasn't been injected yet in this session.
+# It checks for implementation triggers and validates acceptance criteria exist.
 #
 # Triggered by: Claude Code UserPromptSubmit hook
 # Timeout: 3 seconds
@@ -13,45 +12,61 @@ set -euo pipefail
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-.}"
 cd "$PROJECT_ROOT"
 
-# Track if we've already injected in this session
-SESSION_MARKER="/tmp/.agentic-claude-session-$$"
+# --- Stale artifact reminder (commit-relative) ---
+# When uncommitted changes exist and JOURNAL/STATUS haven't been updated since
+# the last commit, remind the agent. Works correctly in git worktrees.
+if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+  UNCOMMITTED=$(git status --porcelain 2>/dev/null | head -1)
+  if [[ -n "$UNCOMMITTED" ]]; then
+    LAST_COMMIT_TIME=$(git log -1 --format=%ct 2>/dev/null || echo "")
+    if [[ -n "$LAST_COMMIT_TIME" ]] && command -v stat >/dev/null 2>&1; then
+      STALE_ARTIFACTS=""
 
-# Only inject once per session
-if [[ -f "$SESSION_MARKER" ]]; then
-  exit 0
-fi
+      # Check JOURNAL.md
+      JOURNAL_PATH=""
+      if [[ -f ".agentic-journal/JOURNAL.md" ]]; then
+        JOURNAL_PATH=".agentic-journal/JOURNAL.md"
+      elif [[ -f "JOURNAL.md" ]]; then
+        JOURNAL_PATH="JOURNAL.md"
+      fi
+      if [[ -n "$JOURNAL_PATH" ]]; then
+        if [[ "$(uname)" == "Darwin" ]]; then
+          JOURNAL_MTIME=$(stat -f %m "$JOURNAL_PATH")
+        else
+          JOURNAL_MTIME=$(stat -c %Y "$JOURNAL_PATH")
+        fi
+        if [[ $JOURNAL_MTIME -le $LAST_COMMIT_TIME ]]; then
+          STALE_ARTIFACTS="${STALE_ARTIFACTS}JOURNAL.md "
+        fi
+      fi
 
-# Check if .continue-here.md exists
-if [[ ! -f ".continue-here.md" ]]; then
-  exit 0
-fi
+      # Check STATUS.md
+      if [[ -f "STATUS.md" ]]; then
+        if [[ "$(uname)" == "Darwin" ]]; then
+          STATUS_MTIME=$(stat -f %m STATUS.md)
+        else
+          STATUS_MTIME=$(stat -c %Y STATUS.md)
+        fi
+        if [[ $STATUS_MTIME -le $LAST_COMMIT_TIME ]]; then
+          STALE_ARTIFACTS="${STALE_ARTIFACTS}STATUS.md "
+        fi
+      fi
 
-# Check file age (don't inject if > 7 days old)
-if command -v stat >/dev/null 2>&1; then
-  if [[ "$(uname)" == "Darwin" ]]; then
-    FILE_AGE_SECONDS=$(( $(date +%s) - $(stat -f %m .continue-here.md) ))
-  else
-    FILE_AGE_SECONDS=$(( $(date +%s) - $(stat -c %Y .continue-here.md) ))
+      if [[ -n "$STALE_ARTIFACTS" ]]; then
+        echo ""
+        echo "📋 REMINDER: You have uncommitted changes but ${STALE_ARTIFACTS}not updated since last commit."
+        echo "   Update before your next commit:"
+        if [[ "$STALE_ARTIFACTS" == *"JOURNAL"* ]]; then
+          echo "   bash .agentic/tools/journal.sh \"Topic\" \"Done\" \"Next\" \"Blockers\""
+        fi
+        if [[ "$STALE_ARTIFACTS" == *"STATUS"* ]]; then
+          echo "   bash .agentic/tools/status.sh focus \"Current task\""
+        fi
+        echo ""
+      fi
+    fi
   fi
-  
-  SEVEN_DAYS=$((7 * 24 * 60 * 60))
-  if [[ $FILE_AGE_SECONDS -gt $SEVEN_DAYS ]]; then
-    echo "Note: .continue-here.md is stale (>7 days old). Generate fresh: python3 .agentic/tools/continue_here.py"
-    exit 0
-  fi
 fi
-
-# Inject the file content as a system message (Claude will see it before the user prompt)
-echo ""
-echo "📄 Auto-injecting session context from .continue-here.md:"
-echo ""
-cat .continue-here.md
-echo ""
-echo "---"
-echo ""
-
-# Mark as injected for this session
-touch "$SESSION_MARKER"
 
 # --- Phase-aware verification (v0.11.0) ---
 # Check if user prompt contains "implement" trigger and warn if no acceptance

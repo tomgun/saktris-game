@@ -2,6 +2,8 @@
 
 **Purpose**: Agents automatically detect task type and follow the correct systematic process.
 
+**Design basis**: Implements Principles F3 (Token & Context Optimization), D2 (Deterministic Enforcement), and D3 (Durable Artifacts). Architecture: `docs/INSTRUCTION_ARCHITECTURE.md`.
+
 **🚨 CRITICAL**: These rules are NON-NEGOTIABLE. Follow them without user prompting.
 
 ---
@@ -12,9 +14,11 @@
 
 ### 1. Silently Read Context
 ```bash
-cat STATUS.md 2>/dev/null
-cat HUMAN_NEEDED.md 2>/dev/null | head -20
-ls .agentic/WIP.md 2>/dev/null
+# Every command needs || true to prevent exit code errors
+cat STATUS.md 2>/dev/null || true
+cat HUMAN_NEEDED.md 2>/dev/null | head -20 || true
+cat .agentic-state/AGENTS_ACTIVE.md 2>/dev/null || true
+ls .agentic-state/WIP.md 2>/dev/null || true
 ```
 
 ### 2. Greet User with Recap
@@ -37,7 +41,7 @@ What would you like to work on?
 
 | Situation | Response |
 |-----------|----------|
-| .agentic/WIP.md exists | "⚠️ Previous work interrupted! Continue, review, or rollback?" |
+| .agentic-state/WIP.md exists | "⚠️ Previous work interrupted! Continue, review, or rollback?" |
 | HUMAN_NEEDED has items | "📋 [N] items need your input" |
 | Upgrade pending | "🔄 Framework upgraded to vX.Y.Z, applying updates..." |
 
@@ -114,38 +118,57 @@ See `.agentic/agents/context-manifests/` for all role definitions
 
 **Trigger**: User mentions implementing a feature (F-#### or general)
 
+**CRITICAL PRE-CONDITION (feature_tracking=yes)**: If the user describes a feature without a feature ID:
+1. Assign the next available F-XXXX ID in spec/FEATURES.md
+2. Create spec/acceptance/F-XXXX.md with acceptance criteria
+3. THEN proceed with the pipeline below
+
+Do NOT proceed to step 4 (IMPLEMENT) without completing step 1 (VERIFY ACCEPTANCE CRITERIA EXIST).
+
 ### Automatic Steps (DO ALL OF THESE)
 
 ```
 1. VERIFY ACCEPTANCE CRITERIA EXIST
-   ├─ Core+PM: Check spec/acceptance/F-####.md exists
-   ├─ Core: Check PRODUCT.md has criteria
+   ├─ feature_tracking=yes: Check spec/acceptance/F-####.md exists
+   ├─ feature_tracking=no: Check OVERVIEW.md has criteria
    └─ If missing: CREATE THEM FIRST (rough is OK)
-   
-2. CHECK DEVELOPMENT MODE
+
+2. CHECK PLAN-REVIEW SETTING
+   └─ Read STACK.md → plan_review_enabled (default: yes for formal profile)
+   ├─ If yes: Run `ag plan F-####` first — tell user review loop is active
+   │          and mention max iterations from plan_review_max_iterations
+   └─ If no: Proceed directly (or run ag plan --no-review for simple plan)
+
+3. CHECK DEVELOPMENT MODE
    └─ Read STACK.md → development_mode (default: standard)
-   
-3. IMPLEMENT
+
+4. IMPLEMENT
    ├─ Write code meeting acceptance criteria
    ├─ Add @feature annotations
    └─ Keep small, focused changes
-   
-4. TEST
-   ├─ Write/run tests verifying acceptance criteria
+
+5. TEST
+   ├─ Write tests as specified in spec/acceptance/F-####.md → ## Tests
    ├─ All tests must pass
    └─ Smoke test: RUN THE APPLICATION
-   
-5. UPDATE SPECS (MANDATORY - NOT OPTIONAL)
-   ├─ Core+PM: Update spec/FEATURES.md status
-   ├─ Core: Update PRODUCT.md
+
+6. UPDATE SPECS (MANDATORY - NOT OPTIONAL)
+   ├─ feature_tracking=yes: Update spec/FEATURES.md status
+   ├─ feature_tracking=no: Update OVERVIEW.md
    └─ This is part of "done", not afterthought
-   
-6. UPDATE DOCS
+
+7. UPDATE DOCS
    ├─ JOURNAL.md (what was accomplished)
    ├─ CONTEXT_PACK.md (if architecture changed)
    └─ STATUS.md (next steps)
-   
-7. BEFORE COMMIT
+
+8. DOC LIFECYCLE (if STACK.md ## Docs has entries)
+   ├─ `ag docs F-####` or `docs.sh --trigger feature_done`
+   ├─ Drafts registered docs (lessons, architecture, changelog, etc.)
+   ├─ Formal profile: also drafts pr-trigger docs (changelog, readme)
+   └─ Human reviews drafts in git diff, removes `<!-- draft: -->` markers
+
+9. BEFORE COMMIT
    └─ Run before_commit.md checklist
 ```
 
@@ -153,11 +176,54 @@ See `.agentic/agents/context-manifests/` for all role definitions
 
 | Gate | Check | Block If |
 |------|-------|----------|
-| Acceptance Criteria | `spec/acceptance/F-####.md` exists | Missing = cannot proceed |
+| Acceptance Criteria | `spec/acceptance/F-####.md` (feature_tracking=yes) or criteria in any form (feature_tracking=no) | acceptance_criteria=blocking: Missing = cannot proceed |
 | Tests Pass | Run test suite | Any failure = cannot ship |
-| Smoke Test | Actually run the app | Doesn't work = cannot ship |
-| Specs Updated | FEATURES.md and STATUS.md current | Stale = cannot commit |
+| Smoke Test | Actually run the app | Strongly recommended — verify manually before shipping |
+| Specs Updated | FEATURES.md and STATUS.md current | Stale = cannot commit (enforced by pre-commit-check.sh when feature_tracking=yes) |
 | No Untracked Files | `check-untracked.sh` clean | Untracked = warn before commit |
+
+†Smoke testing and anti-hallucination are behavioral principles reinforced by memory seed and LLM tests. They cannot be verified by scripts.
+
+---
+
+## Brownfield Spec Pipeline (triggered by `ag specs`)
+
+**Trigger**: User runs `ag specs` or asks to generate specs for an existing codebase
+
+### Automatic Steps
+
+```
+1. CHECK: Discovery report exists → if not, run discover.py
+2. CHECK: Domains detected → if only 1 small domain, use quick inline path
+   - Small: 1 domain AND ≤8 clusters → quick inline spec generation
+   - Large: >1 domain OR >8 clusters → systematic domain-by-domain approach
+3. CREATE PLAN: Brownfield spec plan via plan-review loop
+   - Domain map with boundaries, priorities, approach per domain
+   - Reviewer checks: boundaries correct? anything missed? priorities sensible?
+   - Plan artifact: .agentic-journal/plans/brownfield-specs-plan.md
+   - Uses checkbox format: - [ ] Domain (type, ~N features)
+4. PER DOMAIN (in priority order):
+   a. Read key source files (1-2 per cluster, max ~10 per domain)
+   b. Generate features with `- Domain:` metadata tag
+   c. Generate Given/When/Then acceptance criteria
+   d. Write FEATURES.md entries + spec/acceptance/F-####.md files
+   e. Ask user: "Does this look right for [Domain]? Merge/split/adjust?"
+   f. Mark domain as COMPLETED in plan artifact (change - [ ] to - [x])
+5. CROSS-DOMAIN REVIEW:
+   - Check for duplicate features across domains
+   - Check for gaps (code areas not covered)
+   - Final user confirmation
+6. TOKEN COST CHECK:
+   - If feature count > 50: suggest `organize_features.py --by domain`
+7. UPDATE: FEATURES.md, STATUS.md, JOURNAL.md
+```
+
+### Multi-Session Support
+
+Brownfield spec generation can span multiple sessions:
+- Progress tracked via checkboxes in plan artifact
+- Session start detects active plan → suggests resuming with `ag specs`
+- `ag specs --status` shows domain completion progress
 
 ---
 
@@ -205,7 +271,7 @@ See `.agentic/agents/context-manifests/` for all role definitions
    └─ cat .agentic/.upgrade_pending (follow if exists)
    
 2. CHECK FOR WIP
-   └─ ls .agentic/WIP.md (resume if exists)
+   └─ ls .agentic-state/WIP.md (resume if exists)
    
 3. READ CONTEXT
    ├─ STATUS.md (what's current focus)
@@ -228,7 +294,7 @@ See `.agentic/agents/context-manifests/` for all role definitions
 □ All acceptance criteria met
 □ Smoke test passed (actually ran the app)
 □ All tests pass
-□ FEATURES.md/PRODUCT.md updated with status: shipped
+□ FEATURES.md/OVERVIEW.md updated with status: shipped
 □ Code annotations added (@feature, @acceptance)
 □ JOURNAL.md updated
 □ No untracked files
@@ -246,11 +312,11 @@ See `.agentic/agents/context-manifests/` for all role definitions
 ### Automatic Checks (ALL MUST PASS)
 
 ```
-□ No .agentic/WIP.md exists (work is complete)
+□ No .agentic-state/WIP.md exists (work is complete)
 □ All tests pass
 □ Smoke test passed (for user-facing changes)
 □ Quality checks pass (if enabled)
-□ FEATURES.md/PRODUCT.md updated
+□ FEATURES.md/OVERVIEW.md updated
 □ JOURNAL.md updated
 □ No untracked files in project directories
 □ Human approval obtained
@@ -306,7 +372,7 @@ The framework promises these things. Agents MUST enforce them:
 
 ❌ **Implementing without acceptance criteria first**
 ❌ **Marking shipped without running the application**
-❌ **Committing without updating FEATURES.md/PRODUCT.md**
+❌ **Committing without updating FEATURES.md/OVERVIEW.md**
 ❌ **Skipping smoke tests ("tests pass" is not enough)**
 ❌ **Treating checklists as optional**
 ❌ **Waiting for user to remind you about specs**
@@ -329,4 +395,57 @@ The framework promises these things. Agents MUST enforce them:
 - Follow the definition of done
 
 These are YOUR responsibility as an agent following this framework.
+
+---
+
+## Reference: Gates, Delegation, and Session Protocols
+
+*(Moved from instruction files — these are structurally enforced, not constitutional rules)*
+
+### Enforced Gates (Settings-Driven)
+
+| Gate | Setting | Formal default | Discovery default |
+|------|---------|----------------|-------------------|
+| Acceptance criteria | `acceptance_criteria` | **blocking** | recommended |
+| WIP before commit | `wip_before_commit` | **blocking** | warning |
+| Test execution | (always enforced) | tests must pass | tests for changed files |
+| Complexity limits | `max_files_per_commit` etc. | 10/500/500 | 15/1000/1000 |
+| Pre-commit checks | `pre_commit_checks` | **full** | fast |
+| Feature status | `feature_tracking` | **yes** (shipped needs acceptance) | no |
+| Docs reviewed | `docs_gate` | **blocking** | off |
+
+Override any setting: `ag set <key> <value>` | View resolved settings: `ag set --show`
+
+Escape hatches (feature branches only): SKIP_TESTS=1 or SKIP_COMPLEXITY=1
+
+### Agent Boundaries
+
+| ALWAYS | ASK FIRST | NEVER |
+|--------|-----------|-------|
+| Run tests before "done" | Add dependencies | Commit without approval |
+| Update specs with code | Change architecture | Push to main directly |
+| Follow existing patterns | Delete files | Modify secrets/.env |
+
+### Agent Mode (model selection for delegation)
+
+Check `agent_mode` in STACK.md: `premium` | `balanced` (default) | `economy`
+- premium: opus for planning/impl/review, sonnet for search
+- balanced (default): opus for planning, sonnet for impl/review, haiku for search
+- economy: sonnet for planning, haiku for everything else
+- Custom: check `models:` section. Docs: `.agentic/workflows/agent_mode.md`
+
+### Task Tool Delegation (Claude Code)
+
+| Task Type | subagent_type | premium | balanced | economy |
+|-----------|---------------|---------|----------|---------|
+| Codebase search | `Explore` | sonnet | haiku | haiku |
+| Planning/architecture | `Plan` | opus | opus | sonnet |
+| Implementation | `general-purpose` | opus | sonnet | haiku |
+| Testing/review | `general-purpose` | opus | sonnet | haiku |
+
+### Session Protocols
+
+- **START**: Run `ag start`. Read STATUS.md, HUMAN_NEEDED.md, check .agentic-state/WIP.md. If WIP.md exists: warn about interrupted work and suggest resuming.
+- **END**: Run `.agentic/checklists/session_end.md`, update JOURNAL.md.
+- **DONE**: Run `.agentic/checklists/feature_complete.md` before claiming done.
 

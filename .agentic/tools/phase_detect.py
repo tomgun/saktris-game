@@ -9,21 +9,9 @@ import re
 import sys
 from pathlib import Path
 
-
-def read_profile(root: Path) -> str:
-    """Determine profile from STACK.md or infer from structure."""
-    stack = root / "STACK.md"
-    if stack.exists():
-        try:
-            md = stack.read_text(encoding="utf-8")
-            m = re.search(r"(?m)^\s*-\s*Profile:\s*([a-z+_-]+)\s*$", md)
-            if m and m.group(1).strip() in {"core", "core+product"}:
-                return m.group(1).strip()
-        except Exception:
-            pass
-    if (root / "spec").is_dir() or (root / "STATUS.md").is_file():
-        return "core+product"
-    return "core"
+# Import shared settings library
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from settings import get_setting
 
 
 def detect_phase(root: Path) -> str:
@@ -31,18 +19,18 @@ def detect_phase(root: Path) -> str:
     Detect current development phase.
 
     Returns one of:
-    - "core-mode": Core profile (no feature tracking)
+    - "no-feature-tracking": Feature tracking disabled (setting or profile)
     - "blocked": Has unresolved blockers in HUMAN_NEEDED.md
-    - "start": No active work (no .agentic/WIP.md)
+    - "start": No active work (no .agentic-state/WIP.md)
     - "planning": Feature started but no acceptance criteria
     - "implement": Has acceptance, implementing
     - "complete": Feature shipped, awaiting validation
     """
-    profile = read_profile(root)
+    ft = get_setting(root, "feature_tracking", "no")
 
-    # Core profile has no feature-based phases
-    if profile == "core":
-        return "core-mode"
+    # No feature tracking = no feature-based phases
+    if ft != "yes":
+        return "no-feature-tracking"
 
     # Check for blockers first
     human_needed = root / "HUMAN_NEEDED.md"
@@ -54,8 +42,8 @@ def detect_phase(root: Path) -> str:
         except Exception:
             pass
 
-    # Check .agentic/WIP.md for active feature (format: **Feature**: F-0001: description)
-    wip = root / ".agentic" / "WIP.md"
+    # Check .agentic-state/WIP.md for active feature (format: **Feature**: F-0001: description)
+    wip = root / ".agentic-state" / "WIP.md"
     if not wip.exists():
         return "start"
 
@@ -64,7 +52,7 @@ def detect_phase(root: Path) -> str:
     except Exception:
         return "start"
 
-    # Match .agentic/WIP.md format: **Feature**: F-0001
+    # Match .agentic-state/WIP.md format: **Feature**: F-0001
     feature_match = re.search(r"\*\*Feature\*\*:\s*(F-\d{4})", wip_content)
     if not feature_match:
         # Also try simpler format: Feature: F-0001

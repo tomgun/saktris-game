@@ -28,20 +28,20 @@
 
 ## Work-In-Progress Check (FIRST!)
 
-- [ ] **.agentic/WIP.md must be completed**
+- [ ] **.agentic-state/WIP.md must be completed**
   ```bash
-  # Check if WIP lock exists
-  ls .agentic/WIP.md 2>/dev/null
+  # Check if WIP lock exists (no output = doesn't exist = OK)
+  ls .agentic-state/WIP.md 2>/dev/null || true
   ```
   
-  - **If .agentic/WIP.md exists**: Work is not yet complete!
+  - **If .agentic-state/WIP.md exists**: Work is not yet complete!
     - Complete work first: `bash .agentic/tools/wip.sh complete`
     - This removes the WIP lock file
-    - **NEVER commit while .agentic/WIP.md exists** (indicates incomplete work)
+    - **NEVER commit while .agentic-state/WIP.md exists** (indicates incomplete work)
   
-  - **If .agentic/WIP.md does not exist**: ✓ OK to proceed with commit checks
+  - **If .agentic-state/WIP.md does not exist**: ✓ OK to proceed with commit checks
 
-**Why**: .agentic/WIP.md is a lock file that tracks in-progress work. If it exists, the work is not ready for commit.
+**Why**: .agentic-state/WIP.md is a lock file that tracks in-progress work. If it exists, the work is not ready for commit.
 
 ---
 
@@ -53,13 +53,8 @@
   - No test failures or errors
 
 - [ ] **Smoke test passed** (CRITICAL for user-facing changes)
-  - **If this commit adds/changes user-facing functionality, you MUST run the application and verify it works**
   - See `.agentic/checklists/smoke_testing.md` for full checklist
-  - Quick check:
-    - [ ] Application starts without errors
-    - [ ] Primary user action works (click button, move piece, submit form, etc.)
-    - [ ] No console/log errors
-    - [ ] Expected behavior happens
+  - Quick: app starts, primary action works, no errors
   - **If smoke test fails, DO NOT commit - fix it first**
 
 - [ ] **Quality checks pass** (if enabled)
@@ -84,7 +79,7 @@
 
 ### Core Profile
 
-- [ ] **`PRODUCT.md` reflects reality**
+- [ ] **`OVERVIEW.md` reflects reality**
   - Implemented capabilities marked with [x]
   - "What works now" is accurate
   - "Known limitations" is current
@@ -100,7 +95,7 @@
   - Entry points still accurate?
   - Architecture snapshot current?
 
-### Core+Product Profile (All Core items plus:)
+### Formal Profile (All Core items plus:)
 
 - [ ] **`spec/FEATURES.md` reflects reality**
   - Status accurate (`planned` / `in_progress` / `shipped`)
@@ -141,7 +136,7 @@
 
 ---
 
-## Code Annotations (Core+Product)
+## Code Annotations (Formal)
 
 - [ ] **@feature annotations added**
   - Functions implementing F-#### have `@feature F-####` comment
@@ -246,7 +241,7 @@ docs(readme): update installation instructions
 ❌ **Don't** commit without human approval
 ❌ **Don't** commit with failing tests
 ❌ **Don't** commit without updating JOURNAL.md
-❌ **Don't** commit with stale FEATURES.md/PRODUCT.md
+❌ **Don't** commit with stale FEATURES.md/OVERVIEW.md
 ❌ **Don't** commit with "(Not yet created)" placeholders
 ❌ **Don't** commit debug code (console.log, etc.)
 

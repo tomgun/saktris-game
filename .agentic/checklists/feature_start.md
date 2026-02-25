@@ -8,16 +8,21 @@
 
 ```
 □ Does spec/acceptance/F-####.md exist?
-  ├─ YES → Proceed to Gate 2
+  ├─ YES → Check: does it have a ## Tests section?
+  │         ├─ YES → Proceed to Gate 2
+  │         └─ NO  → Add ## Tests section before coding (see template)
   └─ NO  → 🛑 STOP. Create acceptance criteria FIRST.
            DO NOT write any code until criteria exist.
 ```
 
 **If no acceptance criteria:**
-1. Draft criteria (rough is OK)
-2. Show to user for approval
-3. Create `spec/acceptance/F-####.md`
-4. ONLY THEN proceed
+1. Draft criteria using `.agentic/spec/acceptance.template.md`
+2. Fill in the `## Tests` section — what tests will verify each criterion?
+3. Show to user for approval
+4. Create `spec/acceptance/F-####.md`
+5. ONLY THEN proceed
+
+**The `## Tests` section is required.** Tests are part of the feature definition, not a follow-up task. An acceptance file without a tests section is incomplete.
 
 ---
 
@@ -27,6 +32,11 @@
 □ Is this a SMALL batch? (max 5-10 files)
   ├─ YES → Proceed
   └─ NO  → 🛑 STOP. Split into smaller features first.
+
+□ Declare scope when starting work:
+  - When running `wip.sh start`, files are captured
+  - Pre-commit will warn if you change files outside declared scope
+  - This helps catch unintended side effects
 ```
 
 ---
@@ -72,10 +82,12 @@ DO NOT pass:
 
 ```
 □ Gates 1-4 passed
-□ Ready to implement (or delegate)
+□ Run `ag implement F-XXXX` (creates WIP) or start WIP manually
 □ Will smoke test after
 □ Will update specs when done
 ```
+
+**Next**: Follow `.agentic/checklists/feature_implementation.md` for the implementation phase.
 
 ---
 

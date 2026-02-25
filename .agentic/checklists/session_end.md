@@ -10,7 +10,7 @@
 
 **🚨 CRITICAL**: If session ends abruptly, these documents are the ONLY record of progress. Update them BEFORE ending!
 
-### Both Profiles (Core and Core+PM)
+### Both Profiles (Discovery and Formal)
 
 - [ ] **`JOURNAL.md` updated with full session summary** (NON-NEGOTIABLE!)
   - Session date/time
@@ -28,7 +28,7 @@
   - Next immediate step: Clear, actionable next step
   - Blockers: Document any blockers encountered
 
-- [ ] **`PRODUCT.md` updated** (optional - only if project has one)
+- [ ] **`OVERVIEW.md` updated** (optional - only if project has one)
   - Completed capabilities marked [x]
   - "What works now" is accurate
   - Skip if project uses STATUS.md only
@@ -39,7 +39,7 @@
   - Architecture snapshot current
   - Known risks updated
 
-### Core+Product Profile (Additional items:)
+### Formal Profile (Additional items:)
 
 - [ ] **`spec/FEATURES.md` updated** (if working on features)
   - Status accurate (planned/in_progress/shipped)
@@ -80,6 +80,15 @@
 
 ---
 
+## Flush Pending Ideas to TODO.md
+
+- [ ] **Check Claude's TaskList for pending items**
+  - Any ideas, tasks, or reminders captured during the session?
+  - Flush remaining items to TODO.md via `ag todo "description"`
+  - TODO.md is git-tracked and survives context compression; TaskList does not
+
+---
+
 ## Code State Clean
 
 - [ ] **No uncommitted work** (unless intentional)
@@ -103,6 +112,10 @@
   - Tests still pass
   - Code still runs
   - Nothing half-implemented that breaks build
+
+- [ ] **Drift check** (recommended after significant work)
+  - Run: `bash .agentic/tools/drift.sh`
+  - Checks: untracked files, feature status, template markers
 
 ---
 
@@ -270,20 +283,4 @@ Your final message should include:
 
 **Quality bar**: Could a fresh agent with NO context read JOURNAL.md and STATUS.md and know exactly what to do next? If not, add more detail.
 
----
-
-## Periodic: Spec ↔ Code Alignment (Weekly/Major Milestones)
-
-Run occasionally to catch drift between specs and code:
-
-```bash
-bash .agentic/tools/drift.sh
-```
-
-This checks:
-- Specs have matching code (and vice versa)
-- Non-coders can understand system by reading specs
-- No undocumented functionality
-
-Not required every session, but useful after major work.
 

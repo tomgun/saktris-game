@@ -14,10 +14,12 @@
 
 ```bash
 # Read these silently (don't dump to user)
-cat STATUS.md 2>/dev/null
-cat HUMAN_NEEDED.md 2>/dev/null | head -20
-ls .agentic/WIP.md 2>/dev/null
-cat .agentic/AGENTS_ACTIVE.md 2>/dev/null  # Check for other active agents!
+# IMPORTANT: Every command must have "|| true" to prevent exit code errors
+cat STATUS.md 2>/dev/null || true
+cat HUMAN_NEEDED.md 2>/dev/null | head -20 || true
+cat .agentic-state/AGENTS_ACTIVE.md 2>/dev/null || true
+ls .agentic-state/WIP.md 2>/dev/null || true
+bash .agentic/tools/todo.sh list 2>/dev/null || true
 ```
 
 ## Step 2: Greet User with Recap
@@ -36,16 +38,20 @@ cat .agentic/AGENTS_ACTIVE.md 2>/dev/null  # Check for other active agents!
 2. [Second option if exists]
 3. [Review blockers in HUMAN_NEEDED.md - if any exist]
 
+**Available workflows**: `ag plan` (plan-review before building) | `ag sync` (detect & fix drift)
+
+💡 **Tip**: [Random framework tip — shown automatically by `ag start`]
+
 What would you like to work on?
 ```
 
 ## Step 3: Handle Special Cases
 
-**If .agentic/WIP.md exists** (interrupted work):
+**If .agentic-state/WIP.md exists** (interrupted work):
 ```
 ⚠️ Previous work was interrupted!
-Feature: [from .agentic/WIP.md]
-Files changed: [from .agentic/WIP.md or git diff]
+Feature: [from .agentic-state/WIP.md]
+Files changed: [from .agentic-state/WIP.md or git diff]
 
 Options:
 1. Continue from checkpoint
@@ -68,7 +74,7 @@ I'll quickly apply the updates, then we'll continue.
 [Handle upgrade, then return to normal greeting]
 ```
 
-**If .agentic/AGENTS_ACTIVE.md shows other agents working**:
+**If .agentic-state/AGENTS_ACTIVE.md shows other agents working**:
 ```
 👥 Another agent is currently active!
 
@@ -77,11 +83,11 @@ Agent 1 (Claude - Main Window):
 - Files: [their files]
 
 To avoid conflicts, I should work on different files/features.
-What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTIVE.md)
+What would you like me to work on? (I'll register myself in .agentic-state/AGENTS_ACTIVE.md)
 ```
 
 **CRITICAL - Multi-agent coordination:**
-1. **Read .agentic/AGENTS_ACTIVE.md** to see who else is working
+1. **Read .agentic-state/AGENTS_ACTIVE.md** to see who else is working
 2. **Register yourself** by adding your entry
 3. **Avoid their files** - pick different features/files
 4. **Update when done** - remove your entry or mark complete
@@ -103,7 +109,7 @@ What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTI
 
 **If interrupted work detected (exit code 1):**
 - ⚠️ Previous session stopped mid-task (tokens out, crash, or abrupt close)
-- .agentic/WIP.md shows what was in progress
+- .agentic-state/WIP.md shows what was in progress
 - Git diff shows uncommitted changes
 - **STOP and review before continuing!**
 
@@ -127,6 +133,60 @@ What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTI
 - Git diff shows true state vs. what docs claim
 - Uncommitted changes may conflict with new work
 - Lost work can be recovered instead of overwritten
+
+---
+
+## 🧠 Memory Integrity Check
+
+After the WIP check, verify that Claude Code's auto-memory still contains framework behavioral patterns from `memory-seed.md`. This runs automatically via `ag start`.
+
+```bash
+bash .agentic/tools/memory-check.sh
+```
+
+**What it checks** (Claude Code only; skips other tools):
+- Memory has been seeded (MEMORY.md exists)
+- Version marker matches current `memory-seed.md`
+- Core sentinel patterns haven't been overwritten
+
+**If stale or missing**: Re-read `.agentic/init/memory-seed.md` and write the patterns to your persistent memory. Preserve any other project-specific content already in memory.
+
+**Why**: Memory-seed is a defense-in-depth layer. Scripts enforce workflow structurally; memory reinforces it behaviorally. If memory gets overwritten during development, this check catches it at session start.
+
+---
+
+## 🔄 Sync Check (Advertise if Issues)
+
+`ag start` automatically runs a quick sync probe. If it reports issues:
+
+```
+Sync: 2 issue(s) (journal stale, STATUS.md stale)
+  Run ag sync to auto-fix and see details
+```
+
+Suggest running `ag sync` to the user. It checks memory, journal/STATUS freshness, feature status drift, spec/doc drift, and tool file parity. Safe fixes (like STATUS.md inference) are applied automatically; everything else is report-only with suggested commands.
+
+```bash
+ag sync          # Full sync: detect + auto-fix safe things
+ag sync --check  # Dry run: detect only
+```
+
+---
+
+## 📋 Check for Active Brownfield Spec Plan
+
+- [ ] **Check for brownfield spec plan in progress**:
+  ```bash
+  ls .agentic-journal/plans/*-specs-plan.md 2>/dev/null || echo "No specs plan"
+  ```
+
+**If a specs plan exists with uncompleted domains:**
+```
+📋 Brownfield spec generation is in progress (X/Y domains completed).
+Resume with: ag specs
+```
+
+This is a **suggestion**, not a block. The user may choose to work on something else.
 
 ---
 
@@ -167,6 +227,12 @@ What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTI
 
 ## Essential Reads (Always)
 
+- [ ] **Read `OVERVIEW.md`** (if exists, ≈300-500 tokens)
+  - Product vision and goals
+  - Why we're building this
+  - Core capabilities and scope
+  - Guiding principles
+
 - [ ] **Read `CONTEXT_PACK.md`** (≈500-1000 tokens)
   - Where to look for code
   - How to run/test
@@ -184,18 +250,19 @@ What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTI
   - What worked/didn't work
   - Avoid repeating failed approaches
 
-## Profile-Specific Checks
+## Settings-Aware Checks
 
-- [ ] **Check profile** in `STACK.md` (`Profile:` field)
-  - Core profile → Simpler workflow
-  - Core+Product profile → Additional spec tracking
+- [ ] **Check settings** in `STACK.md` `## Settings` section
+  - `feature_tracking=yes` → Full spec tracking (feature IDs, acceptance criteria)
+  - `feature_tracking=no` → Lightweight workflow
 
 ## Conditional Checks
 
-- [ ] **If Core+Product profile**: Check for active feature
+- [ ] **If `feature_tracking=yes`**: Check for active feature
   - Look at `STATUS.md` → "Current focus"
   - Read relevant `spec/acceptance/F-####.md` if working on feature
   - Check `spec/FEATURES.md` for that feature's status
+  - **If in-progress work exists** (WIP.md or active branch): verify it has an F-XXXX in FEATURES.md with acceptance criteria. If missing, create them before continuing.
 
 - [ ] **If `pipeline_enabled: yes`**: Check for active pipeline
   - Look for `.agentic/pipeline/F-####-pipeline.md`
@@ -252,7 +319,7 @@ What would you like me to work on? (I'll register myself in .agentic/AGENTS_ACTI
   - Example: "I notice we were implementing feature F-0042 but it's not complete. Should we finish that, or switch to something else?"
 
 - [ ] **Check for acceptance validation**
-  - If Core+PM and features are "shipped" but not "accepted", mention them
+  - If Formal and features are "shipped" but not "accepted", mention them
   - Example: "F-0005 and F-0007 are shipped but not accepted yet. Should we validate those?"
 
 ## Summary to User (Make Next Step Obvious)

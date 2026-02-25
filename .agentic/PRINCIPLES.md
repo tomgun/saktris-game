@@ -1,963 +1,379 @@
 # Framework Principles
 
-**Purpose**: This document captures the core values and principles that guide the Agentic AI Framework. These principles inform every design decision and help maintain framework coherence as it evolves.
+**Purpose**: Core values and principles that guide the Agentic AI Framework. Every design decision traces back to these principles.
 
-**For New Contributors**: Understanding these principles is essential before proposing changes to the framework.
+**For New Contributors**: Understand these before proposing changes. **For Agents**: These are non-negotiable guidance.
 
----
-
-## Core Philosophy
-
-### Sustainable Long-Term Development
-
-**What**: This framework optimizes for projects lasting months or years, not quick prototypes.
-
-**Why**: 
-- Complex software takes time to build
-- Context windows reset frequently
-- Teams and requirements evolve
-- AI alone cannot sustain long-term projects
-
-**How**: 
-- Durable artifacts survive context resets (CONTEXT_PACK, STATUS, JOURNAL)
-- Documentation evolves with code
-- Clear project state always visible
-- Human-agent partnership, not AI autonomy
-
-**Example**: A 6-month project with 50 features, multiple context resets, and evolving requirements stays coherent because STATUS.md and JOURNAL.md maintain continuity.
-
-**Anti-pattern**: ❌ Optimizing for quick demos that break after a few sessions when context is lost.
+**Structure**: 3 FOUNDATION + 7 DESIGN PRINCIPLES + 3 OPERATIONAL RULES (13 total). All are mandatory. The tier distinction is abstraction level (WHY → HOW → WHAT), not enforcement level. When principles conflict, specificity wins: Rules override Design Principles for concrete situations.
 
 ---
 
-### Human-Agent Partnership
+## Guiding Meta-Principle: KISS (Keep It Simple)
 
-**What**: Humans and AI agents collaborate as partners, each contributing their strengths.
+Every decision — feature design, documentation, tooling, agent instructions — should favor the simplest approach that works. Complexity is the enemy of reliability, especially with AI agents. If a solution requires lengthy explanation, it's probably too complex. Simpler frameworks get followed; complex ones get ignored.
 
-**Why**:
-- Humans have domain knowledge and judgment
-- AI has execution speed and consistency
-- Neither alone is optimal
-- Specs are the collaboration interface
+**Apply everywhere**: When adding a principle, feature, or tool — ask "is this the simplest way?" When reviewing — ask "can this be simpler?" When choosing between two approaches — pick the one easier to understand and maintain.
 
-**How**:
-- Humans can directly edit specs (FEATURES.md, acceptance criteria)
+---
+
+## Derivation Hierarchy
+
+Every non-foundation principle traces back to one or more parent principles, forming a directed acyclic graph (DAG). This makes the reasoning visible: you can trace any rule back to the foundational WHY it exists.
+
+```mermaid
+graph TB
+    subgraph FOUNDATION["FOUNDATION (WHY)"]
+        F1["F1: Developer-Friendly<br/>Experience"]
+        F2["F2: Sustainable Quality"]
+        F3["F3: Token & Context<br/>Optimization"]
+    end
+    subgraph DESIGN["DESIGN PRINCIPLES (HOW)"]
+        D1["D1: Human-Agent<br/>Partnership"]
+        D2["D2: Deterministic<br/>Enforcement"]
+        D3["D3: Durable Artifacts"]
+        D4["D4: Small Batch +<br/>Acceptance-Driven"]
+        D5["D5: Living<br/>Documentation"]
+        D6["D6: Green Coding"]
+        D7["D7: Multi-Env<br/>Portability"]
+    end
+    subgraph RULES["OPERATIONAL RULES (WHAT)"]
+        R1["R1: Anti-<br/>Hallucination"]
+        R2["R2: No Auto-<br/>Commits"]
+        R3["R3: Check Before<br/>Creating"]
+    end
+
+    F1 --> D1
+    F1 --> D2
+    F1 --> D3
+    F1 --> D7
+    F2 --> D1
+    F2 --> D2
+    F2 --> D3
+    F2 --> D4
+    F2 --> D5
+    F2 --> D6
+    F2 --> D7
+    F3 --> D2
+    F3 --> D3
+    F3 --> D4
+    F2 --> R1
+    F2 --> R3
+    F3 --> R3
+    D1 --> R1
+    D1 --> R2
+    D2 --> R2
+    D3 --> R1
+    D3 --> D5
+```
+
+---
+
+## FOUNDATION (WHY — the reasons this framework exists)
+
+### F1. Developer-Friendly Experience
+
+**What**: The framework makes the developer's life easier. It adds on top of using Claude (or any AI tool) directly: context reconstruction, automatic documentation, guided workflows, state recovery, decision surfacing, and passive learning.
+
+**Why**: AI coding tools are already useful. This framework exists to solve the problems they don't: what happened last session? What needs my attention? What did the agent change? The developer shouldn't have to remember — the framework remembers for them.
+
+**Key Practices**:
+- **Session dashboard**: `ag start` reconstructs context — current focus, recent progress, blockers, suggested next steps
+- **State carries over**: STATUS.md, JOURNAL.md, and WIP.md carry state across sessions so the developer doesn't have to explain what happened
+- **Decision surfacing**: HUMAN_NEEDED.md surfaces items requiring human judgment, `ag sync` detects drift
+- **Discoverability**: Tips of the day, `ag sync` reminders, guided workflows help developers discover framework capabilities over time
+- **Zero-token access**: MANUAL_OPERATIONS.md lets humans check project state without starting an agent session
+- **Readable artifacts**: All specs, status, and journals are plain markdown — readable by humans without tooling
+
+**Anti-pattern**: Developer must remember what happened last session. Framework is opaque to humans. Information only accessible through agent queries.
+
+---
+
+### F2. Sustainable Long-Term Development & Quality Software
+
+**What**: AI-assisted projects produce properly designed, tested, and documented software that stays reliable over time. When specs, criteria, and tests exist, agents can't silently regress working features — even if the developer doesn't review every line.
+
+**Why**: Complex software takes months or years. Context windows reset. Teams evolve. Without deliberate structure, AI-assisted projects collapse after a few sessions. Without quality standards, agents produce code that works today but breaks tomorrow. Specs + acceptance criteria + tests = long-term reliability.
+
+**Key Practices**:
+- **Programming standards by default**: Quality docs wired to agents as REQUIRED, not optional
+- **Specs and criteria before code**: Clearly written specs and acceptance criteria define what "correct" means
+- **Tests based on criteria**: Unit tests + acceptance tests verify criteria, so agents can't silently regress features
+- **Durable artifacts survive context resets**: CONTEXT_PACK, STATUS, JOURNAL carry project state across sessions
+- **Observable progress**: STATUS.md, JOURNAL.md, and feature tracking provide unambiguous progress signals visible to both humans and agents
+- **Testable design**: Architecture supports testing (pure core + imperative shell, dependency injection)
+
+**Anti-pattern**: Optimizing for quick demos that break after context is lost. No persistent documentation, re-learning every session. Code without tests. Standards loaded as optional.
+
+**Reference**: `.agentic/quality/` (7 quality documents), context manifests for agent wiring
+
+---
+
+### F3. Token & Context Optimization
+
+**What**: Tokens cost money, context windows are limited, and compute has environmental impact. Every framework decision respects these constraints — from choosing appropriate models per task to loading minimal context to using scripts that are 40x cheaper than read-modify-write.
+
+**Why**: Reading entire codebases repeatedly is prohibitive. Context resets would kill projects without strategy. Token costs compound over months. This is the #1 unique technical insight of this framework.
+
+**Key Practices**:
+- **Minimal Viable Context**: Load the minimum context needed for the task. Don't frontload "just in case."
+- **Structured reading protocols**: Explicit token budgets per task type (3-5K for a focused feature, not 50K)
+- **Agent delegation**: Spawn subagents with fresh, focused context (5-10K tokens) instead of accumulating drift (100K+)
+- **Sequential agents**: Specialized agents load only role-specific context (Research Agent doesn't load implementation code)
+- **Manual operations**: Humans read STATUS.md and JOURNAL.md directly (zero tokens) instead of asking agents
+- **Token-efficient scripts**: `journal.sh`, `status.sh`, `feature.sh` — 40x more efficient than read-modify-write
+- Token efficiency IS green coding for framework operations — every token saved reduces compute energy
+
+**Anti-pattern**: Reading all files in src/ at session start. "Load all spec files to understand the project." Keeping everything in one long session until context overflows.
+
+**Reference**: `.agentic/token_efficiency/`, `reading_protocols.md`, `MANUAL_OPERATIONS.md`
+
+---
+
+## DESIGN PRINCIPLES (HOW — strategies that serve the foundations)
+
+### D1. Human-Agent Partnership
+
+**What**: Humans and AI agents collaborate as partners. Humans define WHAT, agents handle HOW. Neither alone is optimal.
+
+**Why**: Humans have domain knowledge and judgment. AI has execution speed and consistency. Specs (markdown files) are the collaboration interface — readable and editable by both. Human oversight is a feature, not a bug.
+
+**Derives from**: F1 (UX requires human control), F2 (quality needs human judgment)
+
+**Key Practices**:
+- Humans can directly edit specs (FEATURES.md, acceptance criteria, STATUS.md)
 - Agents honor human edits as source of truth
-- No auto-commits without human approval
-- Both humans and agents read/write documentation
+- Framework makes human review efficient (diff stats, scope drift warnings) — but never tries to eliminate review
+- Agent presents useful information; human makes judgment calls
+- Agents escalate uncertainty to humans (HUMAN_NEEDED.md)
 
-**Example**: Human adds feature to FEATURES.md with acceptance criteria. Agent reads it, implements using TDD, updates status. Human reviews and accepts.
-
-**Anti-pattern**: ❌ "Agent-driven development" where humans just watch. ❌ Hiding specs from humans in obscure formats.
-
----
-
-### Context Efficiency Enables Complexity
-
-**What**: Limited context windows are a constraint that shapes every framework decision.
-
-**Why**:
-- Reading entire codebases repeatedly is prohibitive
-- Context resets would kill projects without strategy
-- Token costs matter for sustainability
-- Sequential agents need even tighter budgets
-
-**How**:
-- Durable artifacts provide maximum context per token
-- Structured reading protocols (10-15K token budgets)
-- Sequential agents optimize context per role
-- Manual operations save tokens for development
-
-**Example**: Research Agent loads 30K tokens (no implementation code). Implementation Agent loads 45K tokens (no research docs). Total 75K vs. 200K for general agent.
-
-**Anti-pattern**: ❌ Reading all files in src/ at session start. ❌ No persistent documentation, re-learning every session.
+**Anti-pattern**: "Agent-driven development" where humans just watch. Hiding specs in formats only agents can edit. Trying to make agents "need less supervision" through more rules.
 
 ---
 
-### Green Coding & Environmental Responsibility
+### D2. Deterministic Enforcement
 
-**What**: Software should minimize energy consumption and environmental impact through efficient design and implementation.
+**What**: Critical behavior is enforced by scripts and gates, not by documentation and hope. This is what makes the framework actually work.
 
-**Why**:
-- Energy-efficient code reduces operational costs
-- Sustainable software aligns with global environmental goals
-- Efficient code is usually faster, more maintainable code
-- Developer responsibility extends to environmental impact
-- Green principles often align with performance optimization
+**Why**: Documentation can be ignored. Guidelines can be misunderstood. Different AI models interpret rules differently. Critical workflows must be reliable, not "usually" reliable. Scripts enforce the same behavior regardless of which agent runs them.
 
-**How**:
-- Optimize algorithms for computational efficiency (lower complexity)
-- Minimize resource usage (memory, CPU cycles, network calls)
-- Lazy loading and on-demand resource allocation
-- Intelligent scheduling of background tasks (event-driven > polling)
-- Profile and optimize energy hotspots
-- Design for longevity (reduce need for frequent rewrites)
-- Choose energy-efficient hosting and infrastructure
+**Derives from**: F1 (predictable UX requires enforcement), F2 (quality needs enforcement), F3 (scripts more token-efficient than behavioral rules)
 
-**Example**: 
-- Use O(n log n) sort instead of O(n²) for large datasets (less CPU)
-- Lazy load images only when visible (less bandwidth, memory)
-- Cache API responses to reduce redundant network calls
-- Debounce UI updates to reduce unnecessary redraws
-- Use WebP instead of PNG (smaller files, less transfer energy)
-
-**Anti-pattern**: 
-- ❌ Polling every second when webhooks/events would work
-- ❌ Loading entire datasets when pagination would suffice
-- ❌ Unoptimized algorithms causing excessive CPU usage
-- ❌ Memory leaks forcing server restarts
-- ❌ Inefficient database queries causing repeated full table scans
-
-**Connection to Other Principles**:
-- **Token Economics**: Efficient code = less compute = lower energy
-- **Quality by Design**: Green code is often cleaner, more maintainable
-- **Performance**: Energy efficiency and speed usually go hand-in-hand
-- **Longevity**: Sustainable design extends software lifecycle
-
----
-
-### Deterministic Behavior & Enforcement
-
-**What**: Agents should produce consistent, predictable results through verification and gates, not just documentation conventions.
-
-**Why**:
-- Documentation can be ignored (agents may skip reading)
-- Guidelines can be misunderstood or forgotten
-- Compliance varies across agent models and versions
-- Critical workflows must be reliable, not "usually" reliable
-- Failure should be detected early, not after shipping
-
-**How**:
-- **Verification scripts > Documentation**: `wip.sh check` is mandatory, not optional
-- **Gates that block > Guidelines that advise**: Pre-commit hooks enforce, checklists advise
-- **Explicit protocols > Implicit expectations**: `session_start.md` specifies exact steps
-- **Automated checks > Human vigilance**: Hooks validate before commits
-- **Structured data > Free text**: YAML frontmatter enables machine validation
+**Key Practices**:
+- **Scripts > Documentation**: `wip.sh check` returns exit code, doesn't just advise
+- **Hard gates for hard rules**: Pre-commit hooks block if WIP.md exists or acceptance files missing
+- **Soft warnings for soft signals**: Scope drift, change size — WARN, don't block (human judges)
+- **Machine-readable specs**: YAML frontmatter enables automated validation (not just human reading)
+- **Graceful degradation**: Advisory guidelines may be skipped by some agents; script-enforced rules cannot be. Framework remains functional even with partial guideline compliance.
+- **Fail fast, recover gracefully**: Catch problems early (pre-commit, WIP check) but always provide clear recovery options (Continue | Review | Rollback)
 
 **Enforcement Mechanisms**:
+1. `session_start.md` — first step is `wip.sh check` (detects interrupted work)
+2. `pre-commit-check.sh` — validates before commit allowed (exit 1 blocks)
+3. `feature.sh` — enforces valid status transitions (planned → in_progress → shipped)
+4. Token-efficient tools — surgical edits, no full-file rewrites
 
-1. **Session Start Protocol** (Mandatory):
-   - `.agentic/checklists/session_start.md` - FIRST step is `wip.sh check`
-   - Detects interrupted work, prevents building on incomplete changes
-   - Non-negotiable: WIP check returns exit code 1 if interrupted work found
+**Design basis**: Two independent research efforts confirmed this principle across Claude Code, Cursor, Copilot, and Codex. See `docs/INSTRUCTION_ARCHITECTURE.md`.
 
-2. **Commit Gates** (Blocking):
-   - `.agentic/hooks/pre-commit-check.sh` - Validates before commit allowed
-   - Checks: .agentic/WIP.md doesn't exist, shipped features have acceptance criteria
-   - Exit code 1 blocks commit if validation fails
+**Enforcement Tiers**:
+- **Structural gates** (script exit 1): WIP blocking, acceptance file existence, JOURNAL/STATUS/FEATURES staleness, test execution, complexity limits, branch policy, one-feature-at-a-time
+- **Behavioral + LLM tests**: Anti-hallucination (LLM-027/028/029), no-auto-commit (LLM-005), bug-fix-test-first (LLM-048)
+- **Behavioral only**: Smoke testing, session protocols, check-before-creating, code annotations
 
-3. **Feature Completion Protocol** (Validated):
-   - `.agentic/workflows/definition_of_done.md` - Explicit checklist
-   - `feature.sh` enforces valid status transitions (planned → in_progress → shipped)
-   - Never mark "shipped" without tests + acceptance criteria
+Some principles are inherently behavioral — they cannot be enforced by scripts. The framework reinforces them through memory seeding (all tools), LLM behavioral tests, and agent guidelines.
 
-4. **Token-Efficient Operations** (Append-only):
-   - `journal.sh`, `status.sh`, `feature.sh`, `blocker.sh` - Surgical edits
-   - Avoid full-file rewrites that waste tokens
-   - 40x more efficient than read-modify-write pattern
-
-5. **Recovery Protocol** (Structured):
-   - WIP tracking + git diff integration
-   - Clear options: Continue | Review | Rollback
-   - No guessing about interrupted work state
-
-**Example (Before - Unreliable)**:
-```markdown
-# agent_operating_guidelines.md
-"Agents should update FEATURES.md when completing features."
-
-Result: Some agents do, some forget, some partially update.
-Token waste: Full file read (1200 tokens) for status change.
-```
-
-**Example (After - Enforced)**:
-```bash
-# Token-efficient script enforces valid states
-bash .agentic/tools/feature.sh F-0005 status shipped
-# Validates: status is valid, file format correct
-# Updates: Single line, no full read
-# Cost: 50 tokens vs. 1200 tokens
-# Outcome: Deterministic, always correct
-
-# Pre-commit hook blocks if incomplete
-bash .agentic/hooks/pre-commit-check.sh
-# Exit 1 if .agentic/WIP.md exists (work incomplete)
-# Exit 1 if shipped features lack acceptance criteria
-# Exit 0 only if all gates pass
-```
-
-**Why This Matters**:
-
-**Reliability over Convenience**:
-- Convenient: "Agents should read session_start.md"
-- Reliable: `wip.sh check` returns exit code, blocks if interrupted
-
-**Early Detection**:
-- Problem: Agent commits incomplete work, builds on it, compounds errors
-- Solution: Pre-commit hook detects .agentic/WIP.md, blocks commit until complete
-
-**Cross-Agent Consistency**:
-- Problem: Different AI models interpret guidelines differently
-- Solution: Scripts enforce same behavior regardless of agent
-
-**Token Economics**:
-- Problem: Reading JOURNAL.md (2000 tokens) to append entry
-- Solution: `journal.sh` appends without read (50 tokens), 40x savings
-
-**Connection to Other Principles**:
-- **Context Efficiency**: Token-efficient scripts reduce waste
-- **Quality by Design**: Gates prevent shipping incomplete features
-- **Human-Agent Partnership**: Scripts enforce contracts reliably
-- **Sustainable Long-Term**: Determinism enables scaling to large projects
-
-**Anti-patterns**:
-- ❌ "Agents should..." without enforcement (hope-based development)
-- ❌ Full file rewrites for single field updates (token waste)
-- ❌ Advisory checklists without validation (ignored under pressure)
-- ❌ No detection of interrupted work (build on broken foundations)
-- ❌ Commit first, validate later (too late to prevent problems)
+**Anti-pattern**: "Agents should..." without enforcement (hope-based development). Commit first, validate later. Blocking on soft signals that require human judgment.
 
 ---
 
-## Token Economics Principles
+### D3. Durable Artifacts
 
-### Durable Artifacts Prevent Repeated Re-Reading
+**What**: Living documents that capture project truth, readable by both humans and agents. The core mechanism for surviving context resets.
 
-**What**: Maintain living documents that capture project truth, preventing repeated codebase scanning.
+**Why**: Without persistent state, every new session starts from scratch. Re-reading the same code every session wastes tokens and time. These artifacts serve dual purpose: agents read them for context; humans read them for project awareness (zero tokens).
 
-**Why**: Re-reading the same code/docs every session wastes tokens and time.
+**Derives from**: F1 (humans read artifacts without agent), F2 (state must survive for quality), F3 (artifacts replace re-scanning code)
 
-**How Enforced**:
-- CONTEXT_PACK.md: architecture snapshot
-- STATUS.md: current state and next steps
-- JOURNAL.md: session-by-session progress
-- Agents read these FIRST (reading_protocols.md)
+**The Artifacts**:
+- **CONTEXT_PACK.md**: Architecture snapshot — where things are, how they connect. Read this first.
+- **STATUS.md**: Current state, next steps, blockers. Always up to date.
+- **JOURNAL.md**: Session-by-session progress log. Append-only via `journal.sh`.
+- **HUMAN_NEEDED.md**: Items requiring human decision or action.
 
-**Example**: Instead of reading 50 implementation files, agent reads CONTEXT_PACK.md (1K tokens) to know where auth logic lives, then reads only auth files.
+**Key Practices**:
+- Agents read these FIRST at session start (reading protocols)
+- Updated in same commit as code changes (Living Documentation)
+- Token-efficient tools prevent full-file rewrites when updating
+- Humans can `cat STATUS.md && tail -30 .agentic-journal/JOURNAL.md` for instant project state (zero tokens)
 
-**Anti-pattern**: ❌ Starting every session with "let me read all files in src/". ❌ Empty or stale CONTEXT_PACK.md.
-
----
-
-### Structured Reading Protocols
-
-**What**: Agents follow explicit token budgets for different reading scenarios.
-
-**Why**: Unstructured reading wastes tokens on irrelevant context.
-
-**How Enforced**:
-- reading_protocols.md defines budgets
-- Always read: CONTEXT_PACK (500-1K), STATUS (300-800), JOURNAL recent (500-1K)
-- Conditional reads based on task
-- agent_operating_guidelines.md requires following protocols
-
-**Example**: Implementing F-0005: Read CONTEXT_PACK (1K), STATUS (500), acceptance/F-0005.md (800), relevant TECH_SPEC section (1K) = 3.3K tokens, not 50K.
-
-**Anti-pattern**: ❌ "Load all spec files to understand the project". ❌ Reading entire FEATURES.md when only one feature is relevant.
+**Anti-pattern**: Starting every session with "let me read all files in src/". Empty or stale CONTEXT_PACK.md. "What are we working on?" when STATUS.md has the answer.
 
 ---
 
-### Manual Operations Save Tokens
+### D4. Small Batch + Acceptance-Driven Development
 
-**What**: Humans can read documentation directly instead of asking agents, reserving agent sessions for actual development.
+**What**: Work in small, isolated batches at the feature level. Define acceptance criteria before implementation. Specs evolve with discoveries.
 
-**Why**: 
-- Faster (immediate)
-- Free (zero tokens)
-- Full context (no summarization)
+**Why**: AI agents lose focus in large batches — context drift is real. Small changes are easy to verify and rollback. Acceptance criteria define "done" before code is written. But specs aren't perfect upfront — they evolve during implementation.
 
-**How Enforced**:
-- MANUAL_OPERATIONS.md documents quick commands
-- grep/cat patterns for instant answers
-- Scripts provide project health without agents
-- Dashboard views consolidate information
+**Derives from**: F2 (quality through criteria + small batches), F3 (smaller batches = less context needed)
 
-**Example**: `cat STATUS.md && tail -30 JOURNAL.md` answers "what's happening?" in 2 seconds, zero tokens.
-
-**Anti-pattern**: ❌ Asking agent "what's the current status?" when STATUS.md has the answer. ❌ Agent sessions for information retrieval.
-
----
-
-### Agent Delegation: Fresh Context is the Key Benefit
-
-**What**: Specialized subagents start with fresh, focused context instead of inheriting 100K+ tokens of accumulated conversation.
-
-**Why (in order of importance)**:
-1. **Fresh context** - Subagent gets 5-10K focused tokens, not 100K+ of drift
-2. **Better focus** - Agent sees only what's relevant to its task
-3. **Less drift** - No accumulated confusion from long conversations
-4. **Token savings** - Smaller input = fewer tokens billed (indirect benefit)
-
-**Model Choice is Optional**:
-- **Same model** (e.g., Opus 4.5): Best quality, benefit is context isolation
-- **Cheaper model** (e.g., Haiku): Cost savings for simple/mechanical tasks
-- **Your choice**: Use best model for quality-critical work
-
-**How**:
-- Delegate exploration to explore-agent (fresh context for search)
-- Delegate implementation to implementation-agent (focused on code)
-- Create project-specific agents for domain expertise
-- Choose model based on task complexity, not as default optimization
-
-**Example**: Long session (100K context) → spawn subagent for focused task (5K context). Result: clearer output, regardless of model.
-
-**Anti-pattern**: ❌ Assuming cheaper models are always better. ❌ Keeping everything in one long session until context overflows.
-
-**Reference**: `.agentic/token_efficiency/agent_delegation_savings.md`
-
----
-
-### Sequential Agents Optimize Context
-
-**What**: Specialized agents work sequentially, each loading only role-specific context.
-
-**Why**: Research Agent doesn't need implementation code. Implementation Agent doesn't need research findings.
-
-**How Enforced**:
-- sequential_agent_specialization.md defines roles and budgets
-- Pipeline state file tracks handoffs
-- Each agent role has explicit "Loads ✅/❌" list
-- STACK.md `pipeline_enabled` controls this
-
-**Example**: 
-- Research Agent: 30K tokens (docs, research, no code)
-- Planning Agent: 40K tokens (specs, architecture, no implementation)
-- Test Agent: 35K tokens (tests, specs, minimal code)
-- Total: 105K vs. 200K for general agent
-
-**Anti-pattern**: ❌ Every agent loading entire codebase. ❌ Test Agent reading research documents.
-
----
-
-## Quality & Testing Principles
-
-### Small Batch Development (NON-NEGOTIABLE)
-
-**What**: Work in small, isolated batches at the FEATURE level. One feature at a time, commit frequently.
-
-**Why (Critical for Long-Term Quality)**:
-- **Easy rollback**: Small changes = easy to verify = easy to rollback
-- **Known-good checkpoints**: If something goes wrong, most of the software still works
-- **Clear ownership**: One feature at a time = unambiguous responsibility
-- **Quality assurance**: Frequent commits = smaller, more reviewable changes
-
-**How Enforced**:
+**Small Batch Rules**:
 - ONE feature at a time per agent (multi-agent teams use worktrees for parallel work)
 - MAX 5-10 files per commit (stop and re-plan if more)
 - COMMIT when feature's acceptance tests pass
-- pre-commit-check.sh warns when batch size exceeds threshold
-- Agents check for "in_progress" features before starting new work
+- STOP and re-plan if >10 files touched, >1 hour without commit, or multiple features in progress
 
-**Rules**:
-1. Acceptance criteria MUST exist before implementation (even rough)
-2. Implement feature → verify with tests → commit
-3. Update specs with discoveries (new edge cases, ideas, issues)
-4. If >10 files touched for "one feature", stop and re-plan
-
-**STOP and re-plan if**:
-- You need to touch >10 files for "one task"
-- You can't define any acceptance criteria
-- You've been working >1 hour without a commit
-- Multiple features are "in progress"
-
-**Example**: Agent implements "user login" feature. It touches 5 files (route, controller, service, test, spec). Tests pass. Commit. Move to next feature.
-
-**Anti-pattern**: ❌ Working on authentication, session management, and password reset all at once. ❌ Commits with 30 files changed. ❌ "I'll commit everything at the end of the day."
-
----
-
-### Acceptance-Driven Development
-
-**What**: Features are defined by acceptance criteria. AI implements, then tests verify. Specs evolve with discoveries.
-
-**Why**:
-- **AI speed**: AI can generate large working chunks quickly - micro-TDD may be slower than needed
-- **Discovery process**: Specs are discovered during implementation, not fully known upfront
-- **Acceptance tests**: The critical gate that catches regressions and unwanted changes
-- **Realistic workflow**: Accommodates the iterative nature of software development
-
-**How Enforced**:
-- Acceptance criteria MUST exist before implementation (even if rough)
-- AI implements feature (can be large chunk)
-- Acceptance tests verify feature works as expected
-- Specs updated with discoveries (new edge cases, issues found)
-- TDD remains an OPTION for those who prefer it
-
-**The Flow**:
-1. Define feature + acceptance criteria (can be rough initially)
+**Acceptance-Driven Flow**:
+1. Define feature + acceptance criteria (rough OK initially)
 2. AI implements feature
 3. Write/update tests to verify acceptance criteria
 4. Update specs with discoveries (new requirements, edge cases)
-5. Commit when acceptance tests pass
-6. Move to next feature
+5. Commit when acceptance tests pass → next feature
 
-**Example**: 
-- Acceptance: "User can log in with email/password"
-- AI implements login flow (may be 200 lines)
-- Write acceptance test: login with valid credentials succeeds
-- Discovery: "Need rate limiting for failed attempts" → add to specs
-- Tests pass → commit → next feature
+**Starting rough is OK**: 2-3 bullet points ("What would success look like?") are a valid starting spec. Specs evolve during implementation — mark discoveries with `[Discovered]` per `spec_evolution.md`. Human verifies the evolved specs as part of acceptance (Shipped ≠ Accepted).
 
-**Anti-pattern**: ❌ Starting implementation with no acceptance criteria at all. ❌ Never updating specs when discoveries are made. ❌ Treating TDD as the only valid approach.
+**Quality Gates**:
+- Acceptance files mandatory for shipped features (spec/acceptance/F-####.md)
+- Shipped ≠ Accepted: agents mark shipped, humans mark accepted (human validation is final gate)
+- TDD available as option (set `development_mode: tdd` in STACK.md) for those who prefer tests-first
 
----
-
-### Stack-Specific Quality Over Generic
-
-**What**: Quality checks must match the technology stack, not be generic.
-
-**Why**: Every technology has unique failure modes that generic tests miss.
-
-**How Enforced**:
-- continuous_quality_validation.md documents this principle
-- quality_profiles/ has stack-specific examples
-- Agents create quality_checks.sh during init based on STACK.md
-- quality_checks.sh runs before commits
-
-**Example**: 
-- Audio plugin: pluginval, NaN/Inf detection, CPU/glitch monitoring
-- Web app: Lighthouse, bundle size, accessibility
-- Backend: Connection pool leaks, slow queries
-
-**Anti-pattern**: ❌ Only running `npm test` for a web app (missing bundle size, a11y, performance). ❌ Same quality script for audio plugin and REST API.
+**Anti-pattern**: Working on auth, sessions, and password reset all at once. Starting with no acceptance criteria. Commits with 30 files. Marking feature "done" without human validation.
 
 ---
 
-### Acceptance Files Are Mandatory
+### D5. Living Documentation
 
-**What**: Every feature in FEATURES.md MUST have a corresponding acceptance criteria file.
+**What**: Documentation stays current, has one authoritative location per topic, and is explicit enough for any agent to follow.
 
-**Why**:
-- How do agents/humans know when "done" is done?
-- Tests pass ≠ solves user problem
-- Enables formal validation
-- Prevents shipping incomplete features
+**Why**: Stale docs are worse than no docs. Duplicated information drifts apart. Agents interpret ambiguity differently. Clear, current, single-source documentation is the foundation of sustainable AI-assisted development.
 
-**How Enforced**:
-- agent_operating_guidelines.md: "🚨 CRITICAL: Feature Creation Rule"
-- verify.py reports missing acceptance files
-- doctor.py checks acceptance file exists
-- Agents must create spec/acceptance/F-####.md when defining feature
+**Derives from**: F2 (stale docs = quality problem), D3 (docs ARE artifacts)
 
-**Example**: F-0005 defined in FEATURES.md → spec/acceptance/F-0005.md created with testable criteria BEFORE implementation.
+**Key Practices**:
+- **Same commit rule**: Documentation updated in same commit as code changes (MANDATORY)
+- **Single source of truth**: Every topic has ONE authoritative location. Cross-reference, don't duplicate.
+- **Explicit over implicit**: All behavior documented. No "magic" or implicit understanding required. Agents need explicitness.
+- **Accurate > complete**: Documentation describes what ACTUALLY works, not aspirations
+- **DRY**: Don't Repeat Yourself — refactor when duplication found
 
-**Anti-pattern**: ❌ Feature marked "shipped" with no acceptance file. ❌ Acceptance criteria only in comments or JOURNAL. ❌ "I'll add criteria later".
+**Document Hierarchy**:
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| START_HERE.md | Quick start (5 min) | New users |
+| DEVELOPER_GUIDE.md | Comprehensive reference | Daily use |
+| MANUAL_OPERATIONS.md | Token-free commands | Quick lookups |
+| PRINCIPLES.md | Why we do what we do | Contributors |
+| agent_operating_guidelines.md | Agent behavior rules | AI agents |
 
----
-
-### Shipped ≠ Accepted
-
-**What**: "Shipped" (code complete) and "Accepted" (human validated) are distinct states.
-
-**Why**:
-- Code complete ≠ user validated
-- Tests can pass but feature doesn't solve real problem
-- Human validation is irreplaceable final gate
-- Need audit trail of who validated and when
-
-**How Enforced**:
-- FEATURES.md has both `Status: shipped` and `Accepted: yes/no` fields
-- agent_operating_guidelines.md: "🚨 CRITICAL: Feature Status Workflow"
-- Agents mark shipped, humans mark accepted
-- accept.sh tool for formal acceptance
-
-**Example**:
-```markdown
-F-0005: CSV Export
-- Status: shipped       ← Tests pass, code committed
-- Verification:
-  - Accepted: yes       ← Human tested with real data
-  - Accepted at: 2026-01-03
-```
-
-**Anti-pattern**: ❌ Marking feature "done" without human validation. ❌ Agent auto-accepting features. ❌ `Accepted: yes` set by agent.
+**Anti-pattern**: Code committed, docs updated "later" (never). Same explanation in 3 files. Relying on conventions not documented.
 
 ---
 
-### Implementation State Must Match Reality
+### D6. Green Coding
 
-**What**: The `Implementation: State` field in FEATURES.md must accurately reflect whether code exists.
+**What**: The framework helps projects produce environmentally efficient software through practical guidance and awareness.
 
-**Why**: Prevents confusion about what's implemented vs. planned.
+**Why**: Energy-efficient code is usually faster, cheaper, and more maintainable. Green principles align with performance optimization. Developer responsibility extends to environmental impact.
 
-**How Enforced**:
-- agent_operating_guidelines.md: "🚨 CRITICAL: Never leave `State: none` if code exists"
-- Agents check this EVERY time updating FEATURES.md
-- verify.py can detect mismatches (code exists but State: none)
+**Derives from**: F2 (environmental quality of output code)
 
-**Example**: 
-- `State: none` → No code written yet
-- `State: partial` → Some modules implemented
-- `State: complete` → All code written, tests pass
+**Two Aspects**:
+1. **Framework operations**: Token efficiency (F3) inherently reduces compute energy
+2. **Project output**: Practical guidance for writing efficient code — algorithms, caching, event-driven patterns, resource optimization
 
-**Anti-pattern**: ❌ `State: none` but `Code: src/export.py` field is filled. ❌ Never updating State field as code is written.
+**Reference**: See `.agentic/quality/green_coding.md` for comprehensive guidelines covering algorithms, caching, lazy loading, event-driven patterns, resource optimization, and infrastructure choices.
+
+**Anti-pattern**: Polling every second when webhooks would work. Loading entire datasets when pagination would suffice. Unoptimized algorithms causing excessive CPU usage.
 
 ---
 
-### No Untracked Files in Project Directories
+### D7. Multi-Environment Portability
 
-**What**: New files must be git tracked or explicitly ignored. Untracked files in project directories cause deployment failures.
+**What**: Developers can continue work seamlessly across different machines and AI tools (Claude Code, Cursor, Copilot, Codex). Same project state, same conventions, same enforcement — regardless of which tool runs the session.
 
-**Why**:
-- Agents create files but sometimes forget to `git add`
-- Untracked files don't get committed → missing from deployment
-- Silent failures are worse than loud failures
-- Prevention is cheaper than debugging production
+**Why**: AI tool subscriptions have limits. Different tools excel at different tasks. Teams use multiple tools. Long-term projects can't be locked to one vendor. This is why we maintain instruction parity (4 instruction file templates), distributed enforcement (scripts work in any tool), and tool-agnostic state files.
 
-**How**:
-- Pre-commit hook (check 6/6) warns about untracked files
-- Session end checklist includes untracked file review
-- Agent guidelines: "After creating any file, always `git add` it"
-- `check-untracked.sh` tool for manual verification
+**Derives from**: F1 (seamless switching is developer-friendly UX), F2 (long-term projects need tool flexibility)
 
-**Example**: Agent creates `assets/sounds/click.wav` but forgets to track. Pre-commit warns: "⚠ Untracked files in assets/". Developer adds it before deployment breaks.
+**Key Practices**:
+- Instruction parity across tools (CLAUDE.md, .cursorrules, copilot-instructions.md, codex-instructions.md)
+- Distributed enforcement via scripts — `ag.sh`, `pre-commit-check.sh`, `context-for-role.sh` work in any tool
+- Durable artifacts in tool-agnostic formats (plain markdown, YAML frontmatter)
+- `context-for-role.sh` assembles context for any tool's subagent model
 
-**Anti-pattern**: ❌ Assuming all files get tracked automatically. ❌ Ignoring pre-commit warnings about untracked files.
+**Existing features**: F-0054 (multi-environment support), distributed enforcement model (`docs/INSTRUCTION_ARCHITECTURE.md` §6), 4 instruction file templates, `context-for-role.sh`.
 
-**Reference**: `.agentic/tools/check-untracked.sh`, `.agentic/hooks/pre-commit-check.sh`
+**Anti-pattern**: Tool-specific config that only works in one IDE. State stored in tool-proprietary formats. Features that depend on a single tool's API.
 
 ---
 
-### Mutation Testing for Critical Code
+## OPERATIONAL RULES (WHAT — concrete, testable constraints)
 
-**What**: Mutation testing verifies tests catch real bugs by mutating code and checking if tests fail.
+### R1. Anti-Hallucination
 
-**Why**: 100% coverage ≠ good tests. Tests might pass but not catch bugs.
+**What**: Agents must NEVER fabricate information — APIs, function signatures, endpoints, library behavior, or technical claims.
 
-**How Enforced**:
-- test_strategy.md documents mutation testing
-- mutation_test.sh tool available
-- Optional (not mandatory for all code)
-- Recommended for critical business logic
+**Why**: Hallucinated code causes runtime errors and security vulnerabilities. Guessed API signatures waste hours of debugging. One hallucination can cascade into systemic problems. This undermines ALL other quality principles.
 
-**Example**: Payment processing function: mutate `amount > 0` to `amount >= 0`. If tests still pass, they don't check zero-amount validation.
+**Derives from**: D1 (trust requires accuracy), D3 (artifacts must contain truth), F2 (quality baseline: no fabrication)
 
-**Anti-pattern**: ❌ Mutation testing every file (expensive, low value). ❌ Ignoring low mutation scores for auth/payments. ❌ "100% coverage" but tests never fail.
+**Key Practices**:
+- NEVER make things up — state uncertainty, look it up, or ask
+- Verify technical claims against version-specific documentation
+- Use HUMAN_NEEDED.md when uncertain
+- "I don't know" is explicitly encouraged
+- Wrong code that looks right is worse than no code — accuracy > speed
 
----
+**Anti-pattern**: Guessing API signatures. "It probably works like..." Assuming library behavior from training data. Fabricating function names or parameters.
 
-## Human-Agent Collaboration Principles
+**Enforcement**: Behavioral — reinforced by LLM tests (LLM-027, 028, 029), memory seed, and agent guidelines. Cannot be structurally gated.
 
-### Humans Can Edit Specs Directly
-
-**What**: Humans can directly edit FEATURES.md, acceptance criteria, STATUS.md, etc. Agents MUST honor these edits.
-
-**Why**:
-- Humans are stakeholders, not just observers
-- Faster than explaining changes to agent
-- Humans know requirements agents don't
-- Specs are collaboration interface
-
-**How Enforced**:
-- Specs are markdown (human-readable)
-- Specs are visible in root (not hidden)
-- agent_operating_guidelines.md: "Check for human edits"
-- USER_WORKFLOWS.md documents this workflow
-
-**Example**: Human adds F-0010 to FEATURES.md, creates spec/acceptance/F-0010.md. Tells agent: "Implement F-0010". Agent reads, implements, updates progress.
-
-**Anti-pattern**: ❌ Agents overwriting human changes. ❌ Specs in proprietary format only agents can edit. ❌ "Don't edit files manually, tell the agent".
+**Reference**: `agent_operating_guidelines.md` Anti-Hallucination Rules
 
 ---
 
-### No Auto-Commits Without Approval
+### R2. No Auto-Commits Without Approval
 
 **What**: Agents NEVER commit changes without explicit human approval.
 
-**Why**:
-- Humans need to review code quality
-- Understand what changed and why
-- Catch mistakes before they propagate
-- Maintain control over repository
+**Why**: Humans need to review what changed and why. This is the safety gate that prevents compounding mistakes. Agents present changes, wait for approval, then commit.
 
-**How Enforced**:
-- git_workflow.md: "🚨 CRITICAL RULE FOR AGENTS"
-- agent_operating_guidelines.md: "Non-negotiables"
-- Agents present changes, ask for approval, then commit
-- Exception: User grants blanket approval
+**Derives from**: D1 (humans must approve), D2 (enforcement gate)
 
-**Example**: 
-```
-Agent: "I've implemented F-0005. Would you like to review before I commit?"
-Human: "Show me the changes"
-Agent: [presents summary]
-Human: "Looks good, commit it"
-Agent: [commits]
-```
+**Enforcement**: Behavioral — LLM test (LLM-005) verifies compliance. Cannot be structurally gated since git commit always succeeds.
 
-**Anti-pattern**: ❌ Agent auto-committing without showing changes. ❌ "I've committed your changes" (past tense, no approval). ❌ Blanket auto-commit by default.
+**Exception**: User may grant blanket approval for a session.
+
+**Anti-pattern**: "I've committed your changes" (past tense, no approval). Blanket auto-commit by default.
+
+**Reference**: `git_workflow.md`
 
 ---
 
-### Easy Choices Reduce Friction
+### R3. Check Before Creating
 
-**What**: Complex decisions are presented as simple choices (a/b patterns).
+**What**: Before creating any file, test, document, or component, agents MUST check if equivalent functionality already exists.
 
-**Why**:
-- Reduces analysis paralysis
-- Faster decision-making
-- Clear options
-- Accessible to beginners
+**Why**: Duplication wastes effort and creates maintenance burden. Existing implementations may have edge cases already handled. "I didn't know that existed" is not an excuse — checking is mandatory. Proven by real-world discovery (duplicate test 020/025).
 
-**How Enforced**:
-- init_playbook.md: "Type 'a' for Core or 'b' for Core+PM"
-- Clear explanations of each option
-- Single-letter responses
-- Good for/Bad for statements
+**Derives from**: F2 (duplicates are quality problems), F3 (don't waste tokens creating duplicates)
 
-**Example**: 
-```
-a) Core (Simple Setup)
-   - Good for: Small projects, prototypes
-   
-b) Core + Product Management
-   - Good for: Long-term projects, complex products
-   
-Type 'a' or 'b':
-```
+**What to Check**:
+| Creating | Check First |
+|----------|-------------|
+| New test | Existing tests in same area (`grep`, test_definitions.json) |
+| New doc | Existing docs on topic (`grep`, list docs/) |
+| New component | Similar components in codebase |
+| New utility | Existing utilities with similar names/functions |
+| New principle | PRINCIPLES.md for existing coverage |
 
-**Anti-pattern**: ❌ "Describe your project in detail and I'll recommend a profile". ❌ Forcing users to understand all nuances upfront. ❌ No clear recommendation.
+**Anti-pattern**: Creating without searching. "I'll just add a new one, it's faster." Creating auth.js when AuthService.ts exists.
 
 ---
 
-### Agent Partnership Not Replacement
+## Summary
 
-**What**: Framework positions AI as partner, not replacement for developers.
-
-**Why**:
-- Developers have domain expertise AI lacks
-- AI has execution speed developers lack
-- Together > either alone
-- Sustainable long-term requires both
-
-**How Enforced**:
-- All documentation uses "human-agent" language
-- Workflows describe both roles
-- Humans make decisions, agents implement
-- No "AI will do everything" messaging
-
-**Example**: Human defines what to build (PRODUCT.md, acceptance criteria). Agent implements (TDD, code, tests, updates docs). Human validates (acceptance).
-
-**Anti-pattern**: ❌ "Let AI build your project while you sleep". ❌ Hiding all details from humans. ❌ Agent makes all architectural decisions.
-
----
-
-## Documentation & Maintenance Principles
-
-### Single Source of Truth
-
-**What**: Every piece of information has ONE authoritative location.
-
-**Why**:
-- Updates in 1 place, not 3
-- Prevents inconsistency
-- Easier maintenance
-- Clear "where to look"
-
-**How Enforced**:
-- Script explanations: ONLY in DEVELOPER_GUIDE.md
-- Quick commands: ONLY in DEVELOPER_GUIDE.md (others reference it)
-- Cross-references instead of duplication
-- Regular refactoring to eliminate duplication
-
-**Example**: doctor.sh explained in detail in DEVELOPER_GUIDE.md. MANUAL_OPERATIONS.md says "See DEVELOPER_GUIDE.md for details" and just shows command.
-
-**Anti-pattern**: ❌ Same script explanation in 3 files. ❌ Updating one place, forgetting the others. ❌ Conflicting information in different docs.
-
----
-
-### Documentation Must Reflect Reality
-
-**What**: Documentation describes what ACTUALLY works, not aspirations or plans.
-
-**Why**:
-- Broken docs are worse than no docs
-- Users need reliable information
-- Builds trust
-- Accurate > complete
-
-**How Enforced**:
-- Test workflows in example projects
-- Verify scripts actually work
-- Fix broken instructions immediately
-- Remove outdated references
-
-**Example**: Example projects are real, working code. Scripts are tested. Workflows are validated by running through them.
-
-**Anti-pattern**: ❌ "This script should work" (but hasn't been tested). ❌ Instructions referencing features that don't exist. ❌ Copy-pasted examples that don't run.
-
----
-
-### DRY Principle for Documentation
-
-**What**: Documentation should not duplicate information (Don't Repeat Yourself).
-
-**Why**:
-- Maintenance burden increases linearly with duplication
-- Inconsistency creeps in over time
-- Single source of truth easier to update
-- Long-term sustainability
-
-**How Enforced**:
-- Regular reviews for duplication (like we just did)
-- Cross-references instead of copying
-- Clear document hierarchy
-- Refactor when duplication found
-
-**Example**: Quick commands table in DEVELOPER_GUIDE.md. Other docs reference it, don't copy it.
-
-**Anti-pattern**: ❌ Same table in 3 docs. ❌ Copy-pasting large sections between docs. ❌ "It's easier to duplicate than reference".
-
----
-
-### Maintainability Over Cleverness
-
-**What**: Simple, clear code/docs are preferred over complex "smart" solutions.
-
-**Why**:
-- Future you needs to understand it
-- New agents need to maintain it
-- Debugging is harder than writing
-- Long-term > short-term optimization
-
-**How Enforced**:
-- Programming standards: "Clear, descriptive names"
-- Code review checklist asks "Is this clear?"
-- Documentation refactoring for clarity
-- Avoid magic or implicit behavior
-
-**Example**: Explicit `if status == "shipped"` is better than clever status enum magic that saves 2 lines but takes 10 minutes to understand.
-
-**Anti-pattern**: ❌ One-liner that does everything. ❌ Clever regex when simple string operations work. ❌ "This is elegant" (but nobody understands it).
-
----
-
-### Living Documentation Through Automation
-
-**What**: Documentation stays current through agent updates in same commit as code.
-
-**Why**:
-- Stale docs are worse than no docs
-- Humans forget to update docs
-- Automation ensures consistency
-- Same commit = always in sync
-
-**How Enforced**:
-- agent_operating_guidelines.md: "Documentation Sync Rule (MANDATORY)"
-- FEATURES.md updated when implementation changes
-- CONTEXT_PACK.md updated when architecture changes
-- JOURNAL.md updated every session
-
-**Example**: Agent implements F-0005, updates FEATURES.md (State: complete), updates JOURNAL.md (session summary), commits all together.
-
-**Anti-pattern**: ❌ Code committed, docs updated "later" (never). ❌ README says "not yet implemented" but feature exists. ❌ Stale placeholders.
-
----
-
-## Modularity & Flexibility Principles
-
-### Modularity Over Monolith
-
-**What**: Framework offers two profiles (Core and Core+PM) instead of one-size-fits-all.
-
-**Why**:
-- Small projects don't need heavyweight PM
-- External PM tools (Jira, Linear) are valid
-- Forcing decisions upfront is wrong
-- Different projects have different needs
-
-**How Enforced**:
-- STACK.md has `Profile:` field
-- agent_operating_guidelines.md checks profile
-- Core: minimal ceremony (STATUS.md, optional PRODUCT.md)
-- Core+PM: formal tracking (STATUS.md + spec/)
-
-**Example**: 
-- Core: Weekend project, prototype, external PM → Use Core
-- Core+PM: 6-month product, formal specs needed → Use Core+PM
-
-**Anti-pattern**: ❌ "You must use full PM features for every project". ❌ One profile for all scenarios. ❌ Can't disable unused features.
-
----
-
-### Opt-In Complexity
-
-**What**: Advanced features are optional, not mandatory.
-
-**Why**:
-- Don't overwhelm beginners
-- Start simple, add as needed
-- Progressive disclosure
-- Flexibility for different projects
-
-**How Enforced**:
-- Sequential pipeline: `pipeline_enabled: no` by default
-- Retrospectives: optional
-- Research mode: optional
-- Mutation testing: optional
-- STACK.md comments explain each feature
-
-**Example**: Start with Core profile. If project grows complex, enable-product-management.sh to add formal specs. If features are complex, enable sequential pipeline.
-
-**Anti-pattern**: ❌ All features enabled by default. ❌ "You should use everything". ❌ No way to disable features.
-
----
-
-### Easy Upgrade Path
-
-**What**: Projects can upgrade from Core → Core+PM, and from old framework versions → new versions.
-
-**Why**:
-- Don't force decisions upfront
-- Projects evolve over time
-- Don't abandon projects on old versions
-- Migration should be easy
-
-**How Enforced**:
-- enable-product-management.sh adds PM features
-- upgrade.sh upgrades framework version
-- Both scripts handle migration safely
-- UPGRADING.md documents process
-
-**Example**: Start with Core profile for MVP. After 3 months, project grows: run `enable-product-management.sh`. Agent converts PRODUCT.md into formal specs.
-
-**Anti-pattern**: ❌ No upgrade path (stuck forever). ❌ Manual, error-prone migration. ❌ "Just start over with new profile".
-
----
-
-### Progressive Disclosure of Complexity
-
-**What**: Framework reveals advanced features gradually, not all at once.
-
-**Why**:
-- Beginners are overwhelmed by all options
-- Learn essentials first, advanced later
-- Documentation hierarchy supports this
-- Adoption curve is smoother
-
-**How Enforced**:
-- START_HERE.md → DEVELOPER_GUIDE.md → Advanced topics
-- init_playbook.md presents simple choices first
-- Advanced features marked "optional"
-- "Start with 'no', enable after reviewing" comments
-
-**Example**: New user: Install → Initialize (Core) → Use for weeks → Outgrow Core → Enable PM → Learn sequential pipeline → Enable research mode.
-
-**Anti-pattern**: ❌ README lists all 50 features upfront. ❌ Init process asks 20 questions. ❌ No "recommended for beginners" guidance.
-
----
-
-## Anti-Patterns (What NOT to Do)
-
-### ❌ Don't Duplicate Documentation
-
-**Why Wrong**: Update in 3 places = errors, maintenance burden, inconsistency over time.
-
-**Correct Approach**: Single source of truth with cross-references.
-
-**How to Fix**: Refactor docs to eliminate duplication (like we just did).
-
----
-
-### ❌ Don't Mark Feature Shipped Without Acceptance File
-
-**Why Wrong**: How do you know when "done" is done? Tests pass ≠ solves problem.
-
-**Correct Approach**: Create acceptance file BEFORE marking shipped. Human validates.
-
-**How to Fix**: agent_operating_guidelines.md CRITICAL rules enforce this.
-
----
-
-### ❌ Don't Auto-Commit Without Approval
-
-**Why Wrong**: Humans need control over their repository. Code review catches mistakes.
-
-**Correct Approach**: Always ask before committing. Show what changed.
-
-**How to Fix**: git_workflow.md makes this explicit.
-
----
-
-### ❌ Don't Use Generic Quality Checks for Specialized Domains
-
-**Why Wrong**: Audio plugins crash on NaN/Inf. Web apps leak memory. Each domain has unique failure modes.
-
-**Correct Approach**: Stack-specific quality profiles.
-
-**How to Fix**: continuous_quality_validation.md + quality_profiles/.
-
----
-
-### ❌ Don't Hide Product Information From Humans
-
-**Why Wrong**: Humans are stakeholders. Specs are collaboration interface.
-
-**Correct Approach**: Keep STATUS.md, spec/, docs/ visible. Only hide .agentic/ (framework internals).
-
-**How to Fix**: Visible product docs, hidden framework.
-
----
-
-### ❌ Don't Optimize for Quick Demos
-
-**Why Wrong**: Framework is for long-term projects. Context resets would kill projects.
-
-**Correct Approach**: Durable artifacts, session continuity, sustainable practices.
-
-**How to Fix**: CONTEXT_PACK, STATUS, JOURNAL maintain state.
-
----
-
-### ❌ Don't Force Heavyweight PM on Small Projects
-
-**Why Wrong**: Weekend projects don't need F-#### IDs. External PM tools exist.
-
-**Correct Approach**: Core profile for simple projects. Core+PM when needed.
-
-**How to Fix**: Two profiles with clear use cases.
-
----
-
-### ❌ Don't Leave Implementation State Inaccurate
-
-**Why Wrong**: `State: none` but code exists → confusion about what's implemented.
-
-**Correct Approach**: Update State field when adding code. Check every time.
-
-**How to Fix**: agent_operating_guidelines.md CRITICAL rule.
-
----
-
-### ❌ Don't Assume Agents Will "Figure It Out"
-
-**Why Wrong**: Inconsistent behavior, wasted tokens, poor quality.
-
-**Correct Approach**: Explicit guidelines, clear protocols, documented workflows.
-
-**How to Fix**: agent_operating_guidelines.md with detailed instructions.
-
----
-
-### ❌ Don't Skip Human Validation
-
-**Why Wrong**: Tests pass ≠ user problem solved. Only humans can validate real-world utility.
-
-**Correct Approach**: Shipped ≠ Accepted. Human validation is final gate.
-
-**How to Fix**: FEATURES.md tracks both states separately.
-
----
-
-## Summary: The Unstated Core Assumption
-
-**This framework assumes**: Complex software takes months or years to build. It requires:
-- **Sustained effort** (not quick hacks)
-- **Context continuity** (across resets)
-- **Human judgment** (AI alone is insufficient)
-- **Quality by design** (not afterthought)
-- **Living documentation** (stays current)
-- **Token efficiency** (enables complexity)
+**This framework assumes**: Complex software takes months or years to build. It requires sustained effort, context continuity, human judgment, quality by design, living documentation, and token efficiency.
 
 **Therefore**: Every principle optimizes for **sustainable long-term AI-assisted development of real products**, not quick prototypes or demos.
 
@@ -965,26 +381,21 @@ Type 'a' or 'b':
 
 ## Using These Principles
 
-### For Developers:
-- Understand "why" behind framework decisions
-- Make choices aligned with principles
-- Question features that violate principles
+**For Developers**: Understand "why" behind framework decisions. Question features that violate principles.
 
-### For Contributors:
-- Propose changes consistent with principles
-- Reference principles in design discussions
-- Challenge principles if context changed (but with strong rationale)
+**For Contributors**: Propose changes consistent with principles. Challenge principles if context has changed (with strong rationale).
 
-### For New Agents:
-- Read this document first
-- These principles guide all work
-- When uncertain, return to principles
-- These values are non-negotiable core
+**For Agents**: These principles guide all work. When uncertain, return to principles. Operational Rules are concrete constraints — follow them exactly. Design Principles are strategies — apply judgment within them. Foundations are axiomatic — they are the reasons the framework exists.
+
+**Precedence**: When principles conflict, specificity wins. R-level rules override D-level principles for concrete situations. D-level principles override F-level foundations for strategic decisions. Trace the derivation DAG to understand why a rule exists.
+
+**Architecture**: These principles are implemented through a three-layer instruction architecture (Constitution → Playbooks → State). See `docs/INSTRUCTION_ARCHITECTURE.md` for the design basis.
 
 ---
 
-**Last Updated**: 2026-01-27
-**Framework Version**: 0.12.0  
+**Last Updated**: 2026-02-14
+**Framework Version**: 0.25.7
 
-**Note**: Principles evolve, but slowly. Major changes to core philosophy require strong justification and community discussion.
+**Note**: Principles evolve, but slowly. Major changes require strong justification.
 
+**Detailed Reference**: Features, configuration options, and advanced capabilities removed from this document are documented in their respective feature specs, DEVELOPER_GUIDE.md, and agent guidelines. This document captures the WHY; implementation docs capture the HOW.

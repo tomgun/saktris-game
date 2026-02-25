@@ -48,14 +48,14 @@ Proactive Agent Session Progress:
 - `STATUS.md` - Current focus & planned work
 - `JOURNAL.md` - Recent progress and decisions
 - `HUMAN_NEEDED.md` - Active blockers
-- `spec/FEATURES.md` - Feature status (if Core+PM mode)
+- `spec/FEATURES.md` - Feature status (if Formal mode)
 - Git status - Uncommitted changes
 
 **This workflow WRITES**:
 - `JOURNAL.md` - Session summaries and decisions
 - `STATUS.md` - Updated progress and next steps
 - `HUMAN_NEEDED.md` - New blockers or decisions needed
-- `spec/FEATURES.md` - Updated feature status (if Core+PM mode)
+- `spec/FEATURES.md` - Updated feature status (if Formal mode)
 - Source code, tests, other implementation files
 
 **Side effects**:
@@ -425,7 +425,7 @@ This saves agent tokens for actual development!
 **Solutions**:
 1. Check JOURNAL.md for what was discussed last session
 2. Check HUMAN_NEEDED.md - maybe blockers exist that should be resolved first
-3. Check spec/FEATURES.md (if Core+PM) for 'planned' features
+3. Check spec/FEATURES.md (if Formal) for 'planned' features
 4. If still unclear: Ask human directly what they'd like to focus on
 5. Document the answer in STATUS.md so it's clear for next session
 
@@ -550,9 +550,10 @@ c) Technical: "401 Unauthorized: Invalid password"
 **Symptoms**: Long conversation, many file reads, approaching token limit
 
 **Solutions**:
-1. **Generate .continue-here.md immediately**:
+1. **Update STATUS.md** with current state:
    ```bash
-   python3 .agentic/tools/continue_here.py
+   bash .agentic/tools/status.sh focus "Current task"
+   bash .agentic/tools/status.sh next "What to continue"
    ```
 2. **Summarize key decisions** in JOURNAL.md before compaction
 3. **Commit current work** (even if incomplete) to preserve state in git

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# enable-product-management.sh: Add Product Management features to a Core-only project
+# enable-formal.sh: Upgrade a Discovery project to Formal profile
 set -euo pipefail
 
 # Colors
@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║         ENABLING PRODUCT MANAGEMENT FEATURES                   ║"
+echo "║         ENABLING FORMAL PROFILE                   ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -26,18 +26,26 @@ if [[ ! -d ".agentic" ]]; then
   exit 1
 fi
 
-# Check current profile (no PCRE, portable)
-CURRENT_PROFILE=$(
-  grep -E '^[[:space:]]*-[[:space:]]*Profile:' STACK.md 2>/dev/null \
-    | head -1 \
-    | sed -E 's/.*Profile:[[:space:]]*([^[:space:]]+).*/\1/' \
-    || echo "unknown"
-)
+# Check current profile via settings library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CURRENT_PROFILE="unknown"
+if [[ -f "$SCRIPT_DIR/../lib/settings.sh" ]]; then
+  source "$SCRIPT_DIR/../lib/settings.sh"
+  CURRENT_PROFILE="$(get_setting "profile" "discovery")"
+else
+  # Fallback for pre-settings framework
+  CURRENT_PROFILE=$(
+    grep -iE '^[[:space:]]*-[[:space:]]*[Pp]rofile:' STACK.md 2>/dev/null \
+      | head -1 \
+      | sed -E 's/.*[Pp]rofile:[[:space:]]*([^[:space:]]+).*/\1/' \
+      || echo "unknown"
+  )
+fi
 
-if [[ "$CURRENT_PROFILE" == "core+product" ]]; then
-  echo -e "${YELLOW}⚠ Product Management features are already enabled!${NC}"
+if [[ "$CURRENT_PROFILE" == "formal" ]]; then
+  echo -e "${YELLOW}⚠ Formal profile is already enabled!${NC}"
   echo ""
-  echo "Current profile: core+product"
+  echo "Current profile: formal"
   exit 0
 fi
 
@@ -52,38 +60,39 @@ if [[ ! -f "CONTEXT_PACK.md" && -f ".agentic/init/CONTEXT_PACK.template.md" ]]; 
   echo -e "${GREEN}✓ Created CONTEXT_PACK.md (Core)${NC}"
 fi
 
-if [[ ! -f "PRODUCT.md" && -f ".agentic/init/PRODUCT.template.md" ]]; then
-  cp ".agentic/init/PRODUCT.template.md" "PRODUCT.md"
-  echo -e "${GREEN}✓ Created PRODUCT.md (Core)${NC}"
+if [[ ! -f "OVERVIEW.md" && -f ".agentic/init/PRODUCT.template.md" ]]; then
+  cp ".agentic/init/PRODUCT.template.md" "OVERVIEW.md"
+  echo -e "${GREEN}✓ Created OVERVIEW.md (Discovery)${NC}"
 fi
 
-if [[ ! -f "JOURNAL.md" && -f ".agentic/spec/JOURNAL.template.md" ]]; then
-  cp ".agentic/spec/JOURNAL.template.md" "JOURNAL.md"
-  echo -e "${GREEN}✓ Created JOURNAL.md (Core)${NC}"
+if [[ ! -f ".agentic-journal/JOURNAL.md" ]] && [[ ! -f "JOURNAL.md" ]] && [[ -f ".agentic/spec/JOURNAL.template.md" ]]; then
+  mkdir -p ".agentic-journal"
+  cp ".agentic/spec/JOURNAL.template.md" ".agentic-journal/JOURNAL.md"
+  echo -e "${GREEN}✓ Created .agentic-journal/JOURNAL.md (Discovery)${NC}"
 fi
 
 if [[ ! -f "HUMAN_NEEDED.md" && -f ".agentic/spec/HUMAN_NEEDED.template.md" ]]; then
   cp ".agentic/spec/HUMAN_NEEDED.template.md" "HUMAN_NEEDED.md"
-  echo -e "${GREEN}✓ Created HUMAN_NEEDED.md (Core)${NC}"
+  echo -e "${GREEN}✓ Created HUMAN_NEEDED.md (Discovery)${NC}"
 fi
 
-echo "What I'll create:"
+echo "What changes:"
 echo "  ✓ spec/ directory with templates (PRD, TECH_SPEC, FEATURES, NFR)"
 echo "  ✓ STATUS.md (project status and roadmap)"
-echo "  ✓ Update STACK.md profile to 'core+product'"
+echo "  ✓ Update STACK.md profile to 'formal'"
 echo ""
-echo "Note: CONTEXT_PACK.md, PRODUCT.md, and HUMAN_NEEDED.md are already part of Core."
+echo "Note: CONTEXT_PACK.md, OVERVIEW.md, and HUMAN_NEEDED.md are already part of Core."
 echo ""
 
-# Check if PRODUCT.md exists and has content
-if [[ -f "PRODUCT.md" ]]; then
-  PRODUCT_LINE_COUNT=$(wc -l < PRODUCT.md | tr -d ' ')
+# Check if OVERVIEW.md exists and has content
+if [[ -f "OVERVIEW.md" ]]; then
+  PRODUCT_LINE_COUNT=$(wc -l < OVERVIEW.md | tr -d ' ')
   if [[ "$PRODUCT_LINE_COUNT" -gt 10 ]]; then
     PRODUCT_EXISTS="yes"
-    echo -e "${BLUE}📝 Detected PRODUCT.md with content.${NC}"
-    echo "After enabling PM features, you can ask your agent to:"
-    echo "  - Seed spec/FEATURES.md from PRODUCT.md capabilities"
-    echo "  - Seed spec/PRD.md from PRODUCT.md vision"
+    echo -e "${BLUE}📝 Detected OVERVIEW.md with content.${NC}"
+    echo "After enabling Formal profile, you can ask your agent to:"
+    echo "  - Seed spec/FEATURES.md from OVERVIEW.md capabilities"
+    echo "  - Seed spec/PRD.md from OVERVIEW.md vision"
     echo ""
   fi
 fi
@@ -136,23 +145,22 @@ fi
 
 # Note: CONTEXT_PACK.md and HUMAN_NEEDED.md should already exist from Core profile
 
-# Update STACK.md profile (portable; tolerate comments)
-if grep -qE '^[[:space:]]*-[[:space:]]*Profile:' STACK.md; then
-  sed -i.bak -E "s/^([[:space:]]*-[[:space:]]*Profile:[[:space:]]*).*/\\1core+product  # Updated: $(date +%Y-%m-%d)/" STACK.md
-  rm STACK.md.bak 2>/dev/null || true
-  echo -e "${GREEN}✓ Updated STACK.md (Profile: core+product)${NC}"
-else
-  # Insert Profile line after Version line in "## Agentic framework"
-  perl -0777 -i -pe "s/(## Agentic framework\\n- Version:[^\\n]*\\n)/\\1- Profile: core+product  \\# Updated: $(date +%Y-%m-%d)\\n/" STACK.md || true
-  echo -e "${GREEN}✓ Updated STACK.md (added Profile: core+product)${NC}"
-fi
+# Update profile via ag set (creates ## Settings section if needed)
+bash "$SCRIPT_DIR/ag.sh" set profile formal 2>/dev/null || {
+  # Fallback: direct STACK.md edit
+  if grep -qE '^[[:space:]]*-[[:space:]]*[Pp]rofile:' STACK.md; then
+    sed -i.bak -E "s/^([[:space:]]*-[[:space:]]*[Pp]rofile:[[:space:]]*).*/\\1formal/" STACK.md
+    rm STACK.md.bak 2>/dev/null || true
+  fi
+}
+echo -e "${GREEN}✓ Updated STACK.md (profile: formal)${NC}"
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                    COMPLETE                                    ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
-echo -e "${GREEN}Product Management features enabled!${NC}"
+echo -e "${GREEN}Formal profile enabled!${NC}"
 echo ""
 echo "Next steps:"
 echo "  1. Review the new spec templates in spec/"
@@ -160,12 +168,12 @@ echo "  2. Fill in STATUS.md with your current project state"
 echo "  3. Update CONTEXT_PACK.md with your architecture"
 if [[ "$PRODUCT_EXISTS" == "yes" ]]; then
   echo "  4. Tell your agent:"
-  echo "     \"I've enabled PM features. Please convert PRODUCT.md into formal specs:"
-  echo "      - Seed spec/FEATURES.md from PRODUCT.md capabilities (with F-#### IDs)"
-  echo "      - Seed spec/PRD.md from PRODUCT.md vision and scope\""
+  echo "     \"I've enabled the Formal profile. Please convert OVERVIEW.md into formal specs:"
+  echo "      - Seed spec/FEATURES.md from OVERVIEW.md capabilities (with F-#### IDs)"
+  echo "      - Seed spec/PRD.md from OVERVIEW.md vision and scope\""
 else
   echo "  4. Tell your agent:"
-  echo "     \"I've enabled Product Management features. Please review"
+  echo "     \"I've enabled the Formal profile. Please review"
   echo "      spec/FEATURES.md and help me document our existing features.\""
 fi
 echo ""
@@ -177,8 +185,8 @@ echo "  - spec/NFR.md          (Non-functional requirements)"
 echo "  - STATUS.md            (Project status & roadmap)"
 echo ""
 echo "Already part of Core (no changes):"
-echo "  - CONTEXT_PACK.md      (Architecture overview)"
-echo "  - HUMAN_NEEDED.md      (Escalation protocol)"
-echo "  - JOURNAL.md           (Session continuity)"
+echo "  - CONTEXT_PACK.md                (Architecture overview)"
+echo "  - HUMAN_NEEDED.md                (Escalation protocol)"
+echo "  - .agentic-journal/JOURNAL.md    (Session continuity)"
 echo ""
 

@@ -7,7 +7,7 @@ These tests require a real LLM agent interacting with the framework.
 
 ## How to Use This Checklist
 
-1. Create a fresh test project (Core or Core+PM profile)
+1. Create a fresh test project (Discovery or Formal profile)
 2. Start an AI agent session (Claude, Cursor, etc.)
 3. Walk through each test section
 4. Check off items as the agent demonstrates the behavior
@@ -23,7 +23,7 @@ These tests require a real LLM agent interacting with the framework.
 - [ ] Agent reads CONTEXT_PACK.md before coding
 - [ ] Agent reads STATUS.md for current focus
 - [ ] Agent checks for .upgrade_pending marker
-- [ ] Agent checks for .agentic/WIP.md (interrupted work)
+- [ ] Agent checks for .agentic-state/WIP.md (interrupted work)
 
 ### Session End
 - [ ] Agent updates JOURNAL.md with session summary
@@ -34,7 +34,7 @@ These tests require a real LLM agent interacting with the framework.
 
 ---
 
-## 2. Feature Workflow Tests (Core+PM Only)
+## 2. Feature Workflow Tests (Formal Only)
 
 ### Before Implementation
 - [ ] Agent creates acceptance criteria file before coding
@@ -55,7 +55,7 @@ These tests require a real LLM agent interacting with the framework.
 
 ---
 
-## 3. Git Workflow Tests (Core+PM)
+## 3. Git Workflow Tests (Formal)
 
 ### PR-Based Workflow
 - [ ] Agent creates feature branch (not commits to main)
@@ -98,7 +98,7 @@ These tests require a real LLM agent interacting with the framework.
 ## 6. Recovery Tests
 
 ### Interrupted Session
-- [ ] Agent reads .agentic/WIP.md if present
+- [ ] Agent reads .agentic-state/WIP.md if present
 - [ ] Agent can resume work from where it left off
 - [ ] Agent uses JOURNAL.md for context recovery
 
@@ -122,7 +122,7 @@ These tests require a real LLM agent interacting with the framework.
 
 ```markdown
 ## Test Run: [DATE]
-- Profile: [Core / Core+PM]
+- Profile: [Discovery / Formal]
 - Agent: [Claude Code / Cursor / etc.]
 - Tester: [Name]
 
@@ -149,4 +149,4 @@ These tests require a real LLM agent interacting with the framework.
 - These tests are subjective and require human judgment
 - Run periodically to catch behavioral regressions
 - Use fresh projects to avoid cached agent context
-- Test both Core and Core+PM profiles separately
+- Test both Discovery and Formal profiles separately

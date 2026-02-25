@@ -21,17 +21,16 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
+# Source shared settings
+source "${PROJECT_ROOT}/.agentic/lib/settings.sh"
+
 echo ""
 echo "═══════════════════════════════════════════════════════"
 echo "SESSION START PROTOCOL"
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
-# Detect profile
-PROFILE="unknown"
-if [[ -f "STACK.md" ]]; then
-  PROFILE=$(grep "^- Profile:" STACK.md | cut -d: -f2 | tr -d ' ' || echo "unknown")
-fi
+PROFILE=$(get_setting "profile" "discovery")
 
 echo "Project Profile: ${PROFILE}"
 echo ""
@@ -74,21 +73,46 @@ echo ""
 
 # STATUS.md is required for all profiles (v0.12.0+)
 echo "2. STATUS.md (~300-800 tokens)"
-echo "   - Project phase (discovery | building)"
 echo "   - Current focus"
 echo "   - What's in progress"
 echo "   - Next steps"
 echo "   - Known blockers"
 echo ""
-if [[ -f "PRODUCT.md" ]]; then
-  echo "   Optional: PRODUCT.md exists - read for detailed project vision"
+if [[ -f "OVERVIEW.md" ]]; then
+  echo "   Optional: OVERVIEW.md exists - read for detailed project vision"
   echo ""
+fi
+
+# Check STATUS.md freshness — auto-infer state if stale
+if [[ -f "STATUS.md" ]]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
+    STATUS_AGE=$(( ($(date +%s) - $(stat -f %m STATUS.md)) / 86400 ))
+  else
+    STATUS_AGE=$(( ($(date +%s) - $(stat -c %Y STATUS.md)) / 86400 ))
+  fi
+  if [[ $STATUS_AGE -gt 7 ]]; then
+    echo "   ⚠️  WARNING: STATUS.md last updated ${STATUS_AGE} days ago!"
+    echo "      Auto-inferring current state from history..."
+    echo ""
+    if [[ -x ".agentic/tools/status.sh" ]]; then
+      bash .agentic/tools/status.sh infer 2>/dev/null || true
+      echo ""
+      echo "   → Review the inferred state above."
+      echo "   → To apply: bash .agentic/tools/status.sh infer --apply"
+      echo "   → Or update STATUS.md manually with better context."
+      echo ""
+    else
+      echo "      Update it early this session."
+      echo ""
+    fi
+  fi
 fi
 
 echo "3. JOURNAL.md - Last 2-3 entries (~500-1000 tokens)"
 echo "   - Recent progress"
 echo "   - What worked/didn't work"
 echo "   - Avoid repeating mistakes"
+echo "   (Location: .agentic-journal/JOURNAL.md or JOURNAL.md)"
 echo ""
 
 # Check for blockers
@@ -102,10 +126,11 @@ if [[ -f "HUMAN_NEEDED.md" ]]; then
   fi
 fi
 
-# Profile-specific reads
-if [[ "$PROFILE" == "core+product" ]]; then
+# Feature-tracking-specific reads
+FT=$(get_setting "feature_tracking" "no")
+if [[ "$FT" == "yes" ]]; then
   echo ""
-  echo "📖 CORE+PM PROFILE - ADDITIONAL READS:"
+  echo "📖 FEATURE TRACKING - ADDITIONAL READS:"
   echo ""
   echo "- spec/FEATURES.md - Overview of all features (scan, don't read all)"
   echo "- spec/acceptance/F-####.md - If working on specific feature"
@@ -148,8 +173,15 @@ else
 fi
 
 # Check for stale work
-if [[ -f "JOURNAL.md" ]]; then
-  LAST_WORK=$(tail -20 JOURNAL.md | grep "in progress\|working on" -i || echo "")
+JOURNAL_PATH=""
+if [[ -f ".agentic-journal/JOURNAL.md" ]]; then
+  JOURNAL_PATH=".agentic-journal/JOURNAL.md"
+elif [[ -f "JOURNAL.md" ]]; then
+  JOURNAL_PATH="JOURNAL.md"
+fi
+
+if [[ -n "$JOURNAL_PATH" ]]; then
+  LAST_WORK=$(tail -20 "$JOURNAL_PATH" | grep "in progress\|working on" -i || echo "")
   if [[ -n "$LAST_WORK" ]]; then
     echo ""
     echo "⚠️  Possible stale work detected in JOURNAL.md"
@@ -159,7 +191,7 @@ if [[ -f "JOURNAL.md" ]]; then
 fi
 
 # Check for acceptance validation
-if [[ "$PROFILE" == "core+product" ]] && [[ -f "spec/FEATURES.md" ]]; then
+if [[ "$FT" == "yes" ]] && [[ -f "spec/FEATURES.md" ]]; then
   SHIPPED_NOT_ACCEPTED=$(grep -A5 "^## F-" spec/FEATURES.md | grep -B5 "Status: shipped" | grep -B5 "Accepted: no" | grep "^## F-" || echo "")
   if [[ -n "$SHIPPED_NOT_ACCEPTED" ]]; then
     echo ""

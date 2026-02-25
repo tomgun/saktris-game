@@ -19,7 +19,7 @@ This directory contains ready-to-use prompts (called "Projects" in Claude) for c
 
 ### Method 3: Quick Conversation
 1. Start a new conversation
-2. Upload relevant files (PRODUCT.md, FEATURES.md, etc.)
+2. Upload relevant files (OVERVIEW.md, FEATURES.md, etc.)
 3. Paste the prompt from this directory
 
 ## Available Prompts
@@ -28,17 +28,17 @@ This directory contains ready-to-use prompts (called "Projects" in Claude) for c
 - **`session_start.md`** - Start a new coding session
 - **`session_end.md`** - End a session with documentation
 
-### Feature Development (Core+PM Mode)
+### Feature Development (Formal Mode)
 - **`feature_start.md`** - Begin implementing a feature
 - **`feature_test.md`** - Create tests (TDD workflow)
 - **`feature_complete.md`** - Mark feature complete
 
-### Spec Management (Core+PM Mode)
+### Spec Management (Formal Mode)
 - **`migration_create.md`** - Create spec migration
 - **`spec_update.md`** - Update specs after implementation
 
-### Core Mode
-- **`product_update.md`** - Update PRODUCT.md
+### Discovery Mode
+- **`product_update.md`** - Update OVERVIEW.md
 - **`quick_feature.md`** - Implement simple feature
 
 ### Quality & Maintenance
@@ -83,7 +83,7 @@ Projects in Claude Pro provide:
    ```
 3. Add key files as project context:
    - `STATUS.md`
-   - `spec/FEATURES.md` (if Core+PM mode)
+   - `spec/FEATURES.md` (if Formal mode)
    - `STACK.md`
    - `.agentic/START_HERE.md`
 
@@ -101,16 +101,16 @@ Example: "Using extended thinking, help me debug this race condition..."
 
 | Hook | When | Purpose |
 |------|------|---------|
-| `SessionStart` | Session begins | Show project status, check for `.continue-here.md` |
-| `UserPromptSubmit` | First prompt | Auto-inject `.continue-here.md` (no manual "read" needed!) |
+| `SessionStart` | Session begins | Show project status from STATUS.md |
+| `UserPromptSubmit` | First prompt | Phase-aware verification (acceptance check) |
 | `PostToolUse` | After file edits | Run quick linter checks |
-| `PreCompact` | Before context compaction | Save state to `.continue-here.md` |
+| `PreCompact` | Before context compaction | Save state to STATUS.md and JOURNAL.md |
 | `Stop` | Session ends | Remind about uncommitted changes |
 
 **Setup**: See [`.agentic/claude-hooks/README.md`](../../claude-hooks/README.md) for full documentation.
 
 **Benefits**:
-- **Zero-touch context recovery**: `.continue-here.md` is auto-injected
+- **Phase-aware gates**: Catches missing acceptance criteria
 - **Real-time quality gates**: Linter runs after code edits
 - **Never lose progress**: State saved before context compaction
 - **Better workflow discipline**: Reminders about commits and docs

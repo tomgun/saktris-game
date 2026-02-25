@@ -1,8 +1,8 @@
-# Quick Feature Implementation Prompt (Core Mode)
+# Quick Feature Implementation Prompt (Discovery Mode)
 
 I want to implement a small feature: **[brief description]**
 
-Please follow this streamlined workflow for Core mode:
+Please follow this streamlined workflow for Discovery mode:
 
 1. **Plan briefly:**
    - What needs to be built?
@@ -24,7 +24,7 @@ Please follow this streamlined workflow for Core mode:
    - Run linter/formatter
    - Quick manual test if applicable
 
-5. **Update `PRODUCT.md`:**
+5. **Update `OVERVIEW.md`:**
    - Add new feature to list
    - Update current focus/status
    - Note any technical decisions
@@ -39,16 +39,16 @@ Please follow this streamlined workflow for Core mode:
 
 ---
 
-**Core Mode Philosophy:**
-- Lighter process than Core+PM
+**Discovery Mode Philosophy:**
+- Lighter process than Formal
 - No formal specs, but still maintain quality
 - `STATUS.md` tracks current focus and progress
-- `PRODUCT.md` (optional) captures detailed vision
+- `OVERVIEW.md` (optional) captures detailed vision
 - TDD ensures quality without heavy process
 - Documentation stays current
 
 **If you need more structure:**
-- Consider upgrading to Core+PM mode
+- Consider upgrading to Formal mode
 - Adds feature tracking, acceptance criteria files, sequential pipelines
-- Run: `bash .agentic/tools/upgrade_profile.sh`
+- Run: `ag set profile formal`
 

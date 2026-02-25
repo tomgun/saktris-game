@@ -5,10 +5,42 @@
 Purpose: a single source of truth for "how we build and run software here".
 
 ## Agentic framework
-- Version: 0.12.0  <!-- Update when upgrading framework -->
-- Profile: core  <!-- core | core+pm -->
+- Version: 0.19.0  <!-- Update when upgrading framework -->
 - Installed: <!-- YYYY-MM-DD -->
 - Source: https://github.com/tomgun/agentic-framework
+
+## Settings
+<!-- Use `ag set <key> <value>` to change, `ag set --show` to view all. -->
+- profile: discovery
+<!-- discovery | formal -->
+
+### Workflow
+- feature_tracking: no
+# F-XXXX tracking, acceptance criteria gates. Profile defaults — Discovery: no | Formal: yes
+- acceptance_criteria: recommended
+# Require criteria before coding. Profile defaults — Discovery: recommended | Formal: blocking
+- wip_before_commit: warning
+# WIP.md required before commit. Profile defaults — Discovery: warning | Formal: blocking
+- pre_commit_checks: fast
+# Pre-commit gate depth. Profile defaults — Discovery: fast | Formal: full
+- pre_commit_hook: fast
+# Git hook dispatch mode. Profile defaults — Discovery: fast | Formal: fast
+- git_workflow: direct
+# Commit policy for main branch. Profile defaults — Discovery: direct | Formal: pull_request
+- plan_review_enabled: no
+# Review plan before implementation. Profile defaults — Discovery: no | Formal: yes
+- spec_directory: no
+# Create spec/ directory for features. Profile defaults — Discovery: no | Formal: yes
+- docs_gate: off
+# Doc staleness check at ag done. Profile defaults — Discovery: off | Formal: blocking
+
+### Complexity limits
+- max_files_per_commit: 15
+# Blocking limit in pre-commit. Profile defaults — Discovery: 15 | Formal: 10
+- max_added_lines: 1000
+# Blocking limit for added lines. Profile defaults — Discovery: 1000 | Formal: 500
+- max_code_file_length: 1000
+# Blocking limit for single file length. Profile defaults — Discovery: 1000 | Formal: 500
 
 ## Summary
 - What are we building: <!-- 1–2 sentences -->
@@ -29,13 +61,14 @@ Purpose: a single source of truth for "how we build and run software here".
 ## Documentation verification (recommended)
 <!-- Ensures agents use current, version-correct documentation -->
 <!-- See: .agentic/workflows/documentation_verification.md -->
-<!-- - doc_verification: context7  # context7 | manual | none -->
-<!-- - context7_enabled: yes -->
-<!-- - context7_config: .context7.yml -->
+<!-- - doc_verification: context7-mcp  # context7-mcp | web-search | manual | none -->
+<!-- - context7_mcp: enabled          # Requires MCP server config in IDE -->
 <!-- - strict_version_matching: yes -->
+<!-- MCP setup: Add to .cursor/mcp.json or claude_desktop_config.json: -->
+<!-- { "mcpServers": { "context7": { "command": "npx", "args": ["-y", "@upstash/context7-mcp@latest"] } } } -->
 
-## Documentation sources (for manual verification)
-<!-- If not using Context7, agents must check these sources match STACK versions -->
+## Documentation sources (for verification)
+<!-- Agents verify these sources match STACK versions -->
 <!-- Example: -->
 <!-- - Next.js: https://nextjs.org/docs (version selector: v15.1) -->
 <!-- - React: https://react.dev (v19) -->
@@ -78,6 +111,34 @@ Purpose: a single source of truth for "how we build and run software here".
 - development_mode: standard  <!-- DEFAULT: Acceptance-Driven -->
 <!-- - development_mode: tdd  # OPTIONAL: Tests-first approach -->
 
+## Agent mode (quality vs cost tradeoff)
+<!-- Controls model selection across all agent tasks -->
+<!-- See: .agentic/workflows/agent_mode.md for full documentation -->
+- agent_mode: balanced  <!-- premium | balanced | economy -->
+  <!-- premium: Best quality. opus for planning/implementation/review, sonnet for search -->
+  <!-- balanced: Good balance (DEFAULT). opus for planning, sonnet for implementation/review -->
+  <!-- economy: Cost saving. sonnet for planning, haiku for everything else -->
+
+## Model customization (optional)
+<!-- Override default models for any task type. Uncomment and edit to customize. -->
+<!-- Useful when: new models released, fine-tuning for your workflow, cost optimization -->
+<!-- - models: -->
+<!--     planning: opus        # Architecture, specs, critical decisions -->
+<!--     implementation: sonnet # Writing production code -->
+<!--     review: sonnet        # Code review, testing, refactoring -->
+<!--     search: haiku         # Codebase exploration, finding files -->
+
+## Plan-Review Loop
+<!-- Iterative planning with critical review before implementation -->
+<!-- See: .agentic/workflows/plan_review_loop.md -->
+<!-- Note: plan_review_enabled is now in ## Settings (profile-aware) -->
+- plan_review_max_iterations: 3  <!-- Max revisions before human escalation -->
+- plan_review_auto_for: [planning]  <!-- planning | implement | both -->
+  <!-- planning: Runs for ag plan commands -->
+  <!-- implement: Also runs before ag implement if no approved plan exists -->
+  <!-- both: Always runs for both commands -->
+<!-- - plan_review_reviewer_model: same  # same | opus | sonnet (use same model as planner) -->
+
 ## Sequential agent pipeline (optional but RECOMMENDED)
 <!-- Enables specialized agents to work sequentially on features for optimal context efficiency -->
 <!-- See: .agentic/workflows/sequential_agent_specialization.md -->
@@ -95,13 +156,19 @@ Purpose: a single source of truth for "how we build and run software here".
   <!-- no: Agent automatically hands off (still requires approval for commits) -->
 - pipeline_coordination_file: ..agentic/pipeline  <!-- Directory for pipeline state files -->
 
-## Git workflow (required)
-<!-- How agents interact with Git. See .agentic/workflows/git_workflow.md -->
-<!-- Profile-aware defaults: Core+PM → pull_request, Core → direct -->
-<!-- Override explicitly if needed -->
-- git_workflow: pull_request  <!-- pull_request (recommended) | direct -->
+## Git workflow
+<!-- How changes get into main branch. See .agentic/workflows/git_workflow.md -->
+<!-- git_workflow setting is in ## Settings (profile-aware: Discovery→direct, Formal→pull_request) -->
+<!-- Override: `ag set git_workflow direct` or `ag set git_workflow pull_request`                  -->
+<!--                                                                           -->
+<!-- pull_request: Feature branches + PRs (review before merge)                -->
+<!--   - Pre-commit BLOCKS commits to main/master (use --no-verify for hotfix) -->
+<!--   - Best for: teams, long-term projects, audit trails                     -->
+<!--                                                                           -->
+<!-- direct: Commit straight to main (faster, less ceremony)                   -->
+<!--   - Best for: solo prototypes, fast iteration                             -->
 
-<!-- Pull Request mode (DEFAULT for Core+PM, recommended): -->
+<!-- Pull Request mode (DEFAULT for Formal, recommended): -->
 <!--   - Agent creates feature branches for each feature -->
 <!--   - Agent creates PRs after human approval -->
 <!--   - Human reviews PR before merge -->
@@ -126,7 +193,7 @@ Purpose: a single source of truth for "how we build and run software here".
 <!--       worktree: /path/to/worktree-1 -->
 <!--     - id: cursor-agent-2 -->
 <!--       worktree: /path/to/worktree-2 -->
-<!-- When enabled, agents use Git worktrees and coordinate via .agentic/AGENTS_ACTIVE.md -->
+<!-- When enabled, agents use Git worktrees and coordinate via .agentic-state/AGENTS_ACTIVE.md -->
 
 ## Data & integrations
 - Primary datastore: <!-- postgres/sqlite/mongo/redis/etc -->
@@ -137,6 +204,20 @@ Purpose: a single source of truth for "how we build and run software here".
 - Target environment: <!-- local/cloud/on-prem -->
 - CI: <!-- GitHub Actions by default -->
 - Release strategy: <!-- manual/semver/tags/etc -->
+
+## Docs
+<!-- Doc registry — declare what docs this project maintains.
+     This section lives in STACK.md (project root) and survives .agentic/ upgrades.
+     To add a doc: add a line here. No .agentic/ files need editing.
+     Triggers: feature_done | pr | session | manual
+     Note: pr-trigger docs only fire in formal profile (formal uses PRs).
+     To fire on multiple triggers, add two entries with the same path.
+     Types (built-in): changelog | readme | adr | lessons | architecture | runbook | tech-spec | custom -->
+<!-- - doc: CHANGELOG.md          | changelog    | pr           -->
+<!-- - doc: README.md             | readme       | pr           -->
+<!-- - doc: docs/lessons.md       | lessons      | feature_done -->
+<!-- - doc: docs/architecture.md  | architecture | feature_done -->
+<!-- - doc: docs/adr/             | adr          | manual       -->
 
 ## Constraints & non-negotiables
 - Security/compliance: <!-- PII, GDPR, etc -->
@@ -165,7 +246,7 @@ Purpose: a single source of truth for "how we build and run software here".
 <!-- Agents create this during init based on tech stack -->
 <!-- - quality_checks: enabled -->
 <!-- - profile: juce_audio_plugin  # or webapp_fullstack, ios_app, etc -->
-<!-- - pre_commit_hook: yes -->
+<!-- Note: pre_commit_hook is now in ## Settings (use `ag set pre_commit_hook fast|full|no`) -->
 <!-- - run_command: bash quality_checks.sh --pre-commit -->
 <!-- - full_suite_command: bash quality_checks.sh --full -->
 

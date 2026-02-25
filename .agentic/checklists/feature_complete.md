@@ -11,8 +11,8 @@
 ## Acceptance Criteria Met
 
 - [ ] **All acceptance criteria satisfied**
-  - Core+Product: Every item in `spec/acceptance/F-####.md`
-  - Core: Every item in `PRODUCT.md` or user requirements
+  - Formal: Every item in `spec/acceptance/F-####.md`
+  - Core: Every item in `OVERVIEW.md` or user requirements
   - No partial completion
   - No "mostly works" items
 
@@ -87,17 +87,8 @@
 
 ### Test Quality
 
-- [ ] **Tests follow testing standards**
-  - Test edge cases
-  - Test invalid input
-  - Test time-based behavior (if applicable)
-  - Test concurrency (if applicable)
-  - Test resource exhaustion (if applicable)
-
-- [ ] **Mutation testing considered** (for critical code)
-  - If feature is critical (auth, payments, data integrity)
-  - Consider running mutation tests
-  - If run, score should be >80%
+- [ ] **Tests follow testing standards** — see `.agentic/quality/testing_standards.md`
+- [ ] **Mutation testing considered** (for critical code — auth, payments, data integrity)
 
 ---
 
@@ -105,13 +96,13 @@
 
 ### Core Profile
 
-- [ ] **`PRODUCT.md` updated**
+- [ ] **`OVERVIEW.md` updated**
   - Feature marked as implemented [x]
   - "What works now" includes this feature
   - Usage examples if complex
   - Known limitations documented
 
-### Core+Product Profile
+### Formal Profile
 
 - [ ] **`spec/FEATURES.md` updated**
   - Status: `shipped` (not `planned` or `in_progress`)
@@ -148,6 +139,18 @@
 
 ---
 
+## Drift Check (Recommended)
+
+Before marking feature as complete:
+
+- [ ] **Run `bash .agentic/tools/ag.sh trace`** (or `drift.sh`) to verify:
+  - No untracked implementation files related to this feature
+  - Feature status in FEATURES.md matches acceptance criteria completion
+  - No template markers left in project files (e.g., "(Template)" in title)
+  - Code has `@feature` annotations for traceability
+
+---
+
 ## Quality Checks
 
 - [ ] **Spec ↔ Code alignment verified**
@@ -176,12 +179,22 @@
 
 ## Context & Tracking Updated
 
+- [ ] **Change manifest generated** (for documentation patching)
+  - Run: `bash .agentic/tools/manifest.sh F-####`
+  - Or: `ag done F-####` (auto-generates manifest)
+  - Creates `.agentic-journal/manifests/F-####.manifest.md` with:
+    - All commits related to feature
+    - Files changed (code, tests, docs, config)
+    - Lines added/removed
+  - Use for: Auditing what actually changed, patching docs later
+
 - [ ] **`JOURNAL.md` updated**
   - Feature completion documented
   - Important decisions recorded
   - Any challenges/learnings noted
+  - Consider: `--feature F-#### --files N` flags for metadata
 
-- [ ] **`STATUS.md` updated** (Core+Product)
+- [ ] **`STATUS.md` updated** (Formal)
   - Moved feature from "Current focus" to "Recently completed"
   - Or updated "Next up" if more work queued
 
@@ -232,13 +245,27 @@ If ANY answer is "No" or "Not sure" → Feature is NOT ready to be marked shippe
 
 **Only after ALL items above are checked:**
 
+### Version Update (Framework Development)
+
+**CRITICAL ORDER**: Update version BEFORE running final tests, so test results are logged with correct version.
+
+- [ ] **Update VERSION file first** (`echo "X.Y.Z" > VERSION`)
+- [ ] **Update STACK.md version** to match
+- [ ] **Update spec/FEATURES.md version** to match
+- [ ] **THEN run tests** (`bash tests/validate_framework.sh`)
+- [ ] **Update test result files** with new version:
+  - `tests/VERIFICATION_REPORT.md`
+  - `tests/LLM_TEST_RESULTS.md`
+
+**Anti-pattern**: Running tests first, then updating version = test results logged against wrong version.
+
 ### Core Profile
 
-- [ ] **Update `PRODUCT.md`**
+- [ ] **Update `OVERVIEW.md`**
   - Mark capability as [x] implemented
   - Update "What works now"
 
-### Core+Product Profile
+### Formal Profile
 
 - [ ] **Update `spec/FEATURES.md`**
   ```markdown

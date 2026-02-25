@@ -1,6 +1,6 @@
-# Update PRODUCT.md Prompt (Core Mode)
+# Update OVERVIEW.md Prompt (Discovery Mode)
 
-I've made changes to the project and need to update `PRODUCT.md`.
+I've made changes to the project and need to update `OVERVIEW.md`.
 
 Please help me update:
 
@@ -29,21 +29,21 @@ Please help me update:
    - Note any important decisions or insights
 
 6. **Commit together:**
-   - Commit code changes + `PRODUCT.md` + `JOURNAL.md` together
+   - Commit code changes + `OVERVIEW.md` + `JOURNAL.md` together
    - Use descriptive commit message
 
 ---
 
-**PRODUCT.md is your lightweight spec:**
-- In Core mode, it replaces the formal `spec/FEATURES.md`
+**OVERVIEW.md is your lightweight spec:**
+- In Discovery mode, it replaces the formal `spec/FEATURES.md`
 - Keep it up-to-date with every significant change
 - It's the first place anyone (human or AI) should look to understand the project
 - Think of it as "living documentation" that evolves with the code
 
 ---
 
-**Tip:** If the project is growing complex and you find yourself wishing for more structure, consider upgrading to Core+PM mode:
+**Tip:** If the project is growing complex and you find yourself wishing for more structure, consider upgrading to Formal mode:
 ```bash
-bash .agentic/tools/upgrade_profile.sh
+ag set profile formal
 ```
 

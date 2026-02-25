@@ -5,14 +5,30 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+# Import shared settings library
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from settings import get_setting
+
+# NFR content validation (extracted to nfr_validator.py for complexity limits)
+from nfr_validator import validate_nfr_content
+
+# Optional YAML support (graceful fallback if not installed)
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
 
 # === Verification State Tracking ===
 
-VERIFICATION_STATE_FILE = ".agentic/.verification-state"
+# State lives at project root, NOT inside .agentic (survives framework upgrades)
+VERIFICATION_STATE_FILE = ".agentic-state/.verification-state"
 
 
 def get_git_state(root: Path) -> dict:
@@ -303,46 +319,29 @@ class Check:
     purpose: str
 
 
-def read_profile(root: Path) -> str:
-    """
-    Determine profile.
+def checks_for_profile(profile: str, root: Path | None = None) -> list[Check]:
+    # Determine JOURNAL.md location with fallback
+    from pathlib import Path
+    repo_root = root or Path.cwd()
+    journal_path = repo_root / ".agentic-journal" / "JOURNAL.md"
+    if not journal_path.exists():
+        journal_path = repo_root / "JOURNAL.md"
+    journal_relative = str(journal_path.relative_to(repo_root))
 
-    - Prefer explicit `Profile:` in STACK.md.
-    - If not present, infer:
-      - If spec/ exists -> core+product
-      - else -> core
-    """
-    stack = root / "STACK.md"
-    if stack.exists():
-        try:
-            md = stack.read_text(encoding="utf-8")
-            m = re.search(r"(?m)^\s*-\s*Profile:\s*([a-z+_-]+)\s*$", md)
-            if m:
-                val = m.group(1).strip()
-                if val in {"core", "core+product"}:
-                    return val
-        except Exception:
-            pass
-
-    if (root / "spec").is_dir():
-        return "core+product"
-    return "core"
-
-
-def checks_for_profile(profile: str) -> list[Check]:
     core = [
         Check("AGENTS.md", "file", "agent entrypoint (rules + read-first)"),
         Check("CONTEXT_PACK.md", "file", "durable starting context"),
         Check("STATUS.md", "file", "current focus + next steps"),
         Check("STACK.md", "file", "how to run/test + constraints"),
-        Check("JOURNAL.md", "file", "session-by-session progress log"),
+        Check(journal_relative, "file", "session-by-session progress log"),
         Check("HUMAN_NEEDED.md", "file", "escalation protocol"),
         Check("docs", "dir", "system docs (long-lived)"),
     ]
-    if profile == "core":
+    ft = get_setting(repo_root, "feature_tracking", "no")
+    if ft != "yes":
         return core
 
-    # core+product
+    # feature tracking enabled: also check spec files
     return core + [
         Check("spec", "dir", "project truth folder"),
         Check("spec/OVERVIEW.md", "file", "vision + current state + pointers"),
@@ -434,6 +433,91 @@ def validate_optional_enhancements(root: Path, profile: str) -> list[str]:
     return suggestions
 
 
+# === Acceptance File Frontmatter Parsing ===
+
+def parse_acceptance_frontmatter(acceptance_path: Path) -> dict:
+    """
+    Extract structured frontmatter from acceptance file.
+
+    Expected format:
+    ---
+    feature: F-0120
+    status: shipped
+    validation:
+      - command: "pytest tests/test_feature.py -v"
+        description: "Unit tests pass"
+    ---
+    """
+    try:
+        content = acceptance_path.read_text(encoding="utf-8")
+    except Exception:
+        return {}
+
+    # Check for YAML frontmatter
+    if not content.startswith('---'):
+        return {}
+
+    try:
+        # Find end of frontmatter
+        end = content.index('---', 3)
+        frontmatter = content[3:end]
+
+        if HAS_YAML:
+            return yaml.safe_load(frontmatter) or {}
+        else:
+            # Fallback: regex-based parsing for critical fields
+            result = {}
+            feature_match = re.search(r'feature:\s*(\S+)', frontmatter)
+            if feature_match:
+                result['feature'] = feature_match.group(1)
+            status_match = re.search(r'status:\s*(\S+)', frontmatter)
+            if status_match:
+                result['status'] = status_match.group(1)
+            # Extract validation commands (simplified)
+            if 'validation:' in frontmatter:
+                commands = re.findall(r'command:\s*["\'](.+?)["\']', frontmatter)
+                result['validation'] = [{'command': c} for c in commands]
+            return result
+    except (ValueError, Exception):
+        return {}
+
+
+def validate_acceptance_tests(root: Path, feature_id: str) -> list[str]:
+    """Verify acceptance file has runnable validation commands."""
+    issues = []
+    acc_path = root / "spec" / "acceptance" / f"{feature_id}.md"
+
+    if not acc_path.exists():
+        return [f"No acceptance file for {feature_id}"]
+
+    meta = parse_acceptance_frontmatter(acc_path)
+    validations = meta.get('validation', [])
+
+    if not validations:
+        # Fallback: check for legacy ## Validation Commands section
+        try:
+            content = acc_path.read_text(encoding="utf-8")
+            if '## Validation' not in content and '## Test' not in content:
+                # Just a suggestion, not an error
+                pass
+        except Exception:
+            pass
+    else:
+        for v in validations:
+            cmd = v.get('command', '')
+            # Check referenced files exist
+            if 'tests/' in cmd:
+                # Extract test file path from command
+                test_match = re.search(r'tests/[\w/.-]+', cmd)
+                if test_match:
+                    test_file = test_match.group(0)
+                    # Handle glob patterns gracefully
+                    if '*' not in test_file and not (root / test_file).exists():
+                        issues.append(f"{feature_id}: Test file not found: {test_file}")
+
+    return issues
+
+
 def parse_features(md: str) -> dict[str, dict]:
     """Parse FEATURES.md and return dict of feature_id -> metadata."""
     features = {}
@@ -486,6 +570,7 @@ def parse_nfr_ids(md: str) -> set[str]:
     """Parse NFR.md and return set of NFR IDs."""
     nfr_header_re = re.compile(r"^##\s+(NFR-\d{4}):", re.MULTILINE)
     return set(nfr_header_re.findall(md))
+
 
 
 def validate_features(root: Path) -> list[str]:
@@ -599,16 +684,48 @@ def run_phase_checks(root: Path, profile: str, phase: str, feature_id: str = Non
 
     if phase == "start":
         # Check WIP exists (interrupted work?)
-        if (root / ".agentic" / "WIP.md").exists():
-            issues.append(".agentic/WIP.md exists - previous work was interrupted. Review or complete it.")
-        # Context files checked by main doctor flow
+        if (root / ".agentic-state" / "WIP.md").exists():
+            issues.append(".agentic-state/WIP.md exists - previous work was interrupted. Review or complete it.")
+
+        # Check for stale verification
+        state = read_verification_state(root)
+        if state:
+            try:
+                last_run = datetime.fromisoformat(state["last_run"])
+                hours_ago = (datetime.now() - last_run).total_seconds() / 3600
+                if hours_ago > 24:
+                    issues.append(f"Last verification was {hours_ago:.0f}h ago. Consider running: ag verify")
+            except Exception:
+                pass
+
+        # Check for unresolved blockers
+        blockers_file = root / "HUMAN_NEEDED.md"
+        if blockers_file.exists():
+            try:
+                content = blockers_file.read_text()
+                unresolved = len(re.findall(r"^## HN-\d+:.*(?!\[RESOLVED\])", content, re.MULTILINE))
+                if unresolved > 0:
+                    issues.append(f"{unresolved} unresolved blocker(s) in HUMAN_NEEDED.md")
+            except Exception:
+                pass
 
     elif phase == "planning":
         # Must have acceptance criteria before implementing
         if feature_id:
             acc_file = root / "spec" / "acceptance" / f"{feature_id}.md"
             if not acc_file.exists():
-                issues.append(f"No acceptance criteria: spec/acceptance/{feature_id}.md required before implementing")
+                issues.append(f"BLOCKED: No acceptance criteria at spec/acceptance/{feature_id}.md")
+                issues.append("  Create acceptance criteria FIRST, then implement.")
+
+            # Check if feature exists in FEATURES.md
+            features_path = root / "spec" / "FEATURES.md"
+            if features_path.exists():
+                try:
+                    content = features_path.read_text()
+                    if f"## {feature_id}:" not in content:
+                        issues.append(f"Feature {feature_id} not found in spec/FEATURES.md")
+                except Exception:
+                    pass
         else:
             issues.append("No feature ID provided. Use: doctor.sh --phase planning F-0001")
 
@@ -617,20 +734,58 @@ def run_phase_checks(root: Path, profile: str, phase: str, feature_id: str = Non
         if feature_id:
             acc_file = root / "spec" / "acceptance" / f"{feature_id}.md"
             if not acc_file.exists():
-                issues.append(f"Missing acceptance criteria for {feature_id}")
-            if not (root / ".agentic" / "WIP.md").exists():
-                issues.append("No .agentic/WIP.md - start tracking with: wip.sh start " + (feature_id or "FEATURE"))
+                issues.append(f"BLOCKED: Missing acceptance criteria for {feature_id}")
+            if not (root / ".agentic-state" / "WIP.md").exists():
+                issues.append("No WIP tracking. Start with: bash .agentic/tools/wip.sh start " + feature_id)
+
+            # Check feature status
+            features_path = root / "spec" / "FEATURES.md"
+            if features_path.exists():
+                try:
+                    content = features_path.read_text()
+                    if f"## {feature_id}:" in content:
+                        feature_section = content[content.find(f"## {feature_id}:"):]
+                        if "- Status: shipped" in feature_section[:500]:
+                            issues.append(f"{feature_id} already marked 'shipped' - is this intentional?")
+                except Exception:
+                    pass
 
     elif phase == "complete":
         # Tests should pass, FEATURES.md updated
-        if feature_id and profile == "core+product":
+        ft = get_setting(root, "feature_tracking", "no")
+        if feature_id and ft == "yes":
             features_path = root / "spec" / "FEATURES.md"
             if features_path.exists():
-                content = features_path.read_text()
-                if f"## {feature_id}:" in content:
-                    # Check status is shipped or being shipped
-                    if f"- Status: planned" in content[content.find(f"## {feature_id}:"):]:
-                        issues.append(f"{feature_id} still marked 'planned' - update to 'shipped'")
+                try:
+                    content = features_path.read_text()
+                    if f"## {feature_id}:" in content:
+                        feature_section = content[content.find(f"## {feature_id}:"):]
+                        section_end = feature_section.find("\n## ", 10)
+                        if section_end > 0:
+                            feature_section = feature_section[:section_end]
+
+                        # Check status
+                        if "- Status: planned" in feature_section:
+                            issues.append(f"{feature_id}: Status still 'planned' - update to 'shipped'")
+
+                        # Check implementation state
+                        if "State: none" in feature_section or "State: partial" in feature_section:
+                            issues.append(f"{feature_id}: Implementation state not 'complete'")
+
+                        # Check tests
+                        if "Unit: todo" in feature_section.lower():
+                            issues.append(f"{feature_id}: Unit tests still marked 'todo'")
+
+                        # Check acceptance file
+                        acc_file = root / "spec" / "acceptance" / f"{feature_id}.md"
+                        if not acc_file.exists():
+                            issues.append(f"{feature_id}: Missing acceptance criteria file")
+                except Exception:
+                    pass
+
+        # Check WIP is complete
+        if (root / ".agentic" / "WIP.md").exists():
+            issues.append("WIP still active. Complete with: bash .agentic/tools/wip.sh complete")
 
     elif phase == "commit":
         # Delegate to pre-commit checks
@@ -643,9 +798,9 @@ def run_pre_commit_checks(root: Path, profile: str) -> list[str]:
     """Fast checks for pre-commit hook."""
     issues = []
 
-    # 1. .agentic/WIP.md must not exist (work should be complete before commit)
-    if (root / ".agentic" / "WIP.md").exists():
-        issues.append(".agentic/WIP.md exists - complete or remove work-in-progress before committing")
+    # 1. .agentic-state/WIP.md must not exist (work should be complete before commit)
+    if (root / ".agentic-state" / "WIP.md").exists():
+        issues.append(".agentic-state/WIP.md exists - complete or remove work-in-progress before committing")
 
     # 2. Check for untracked files in key directories
     import subprocess
@@ -661,8 +816,9 @@ def run_pre_commit_checks(root: Path, profile: str) -> list[str]:
     except Exception:
         pass
 
-    # 3. For core+product: shipped features need acceptance
-    if profile == "core+product":
+    # 3. For feature tracking: shipped features need acceptance
+    ft = get_setting(root, "feature_tracking", "no")
+    if ft == "yes":
         features_path = root / "spec" / "FEATURES.md"
         if features_path.exists():
             try:
@@ -681,6 +837,71 @@ def run_pre_commit_checks(root: Path, profile: str) -> list[str]:
     return issues
 
 
+def get_verification_summary(root: Path) -> str:
+    """Get a one-line verification status summary for session greeting."""
+    state = read_verification_state(root)
+    if state is None:
+        return "No verification record. Run: ag verify"
+
+    try:
+        last_run = datetime.fromisoformat(state["last_run"])
+        hours_ago = (datetime.now() - last_run).total_seconds() / 3600
+        issues = state.get("issues_count", 0)
+        result = state.get("result", "unknown")
+
+        time_str = f"{hours_ago:.1f}h ago" if hours_ago < 24 else f"{hours_ago/24:.1f}d ago"
+
+        if result == "pass":
+            return f"Last verified: {time_str}, 0 issues"
+        else:
+            return f"Last verified: {time_str}, {issues} issue(s)"
+    except Exception:
+        return "Verification state unreadable"
+
+
+def run_summary_check(root: Path) -> dict:
+    """Run a quick summary check for session start context."""
+    summary = {
+        "verification": get_verification_summary(root),
+        "wip_active": (root / ".agentic" / "WIP.md").exists(),
+        "agents_active": 0,
+        "blockers": 0,
+        "current_focus": None,
+    }
+
+    # Check for active agents
+    agents_file = root / ".agentic" / "AGENTS_ACTIVE.md"
+    if agents_file.exists():
+        try:
+            content = agents_file.read_text()
+            summary["agents_active"] = content.count("## ")
+        except Exception:
+            pass
+
+    # Check for blockers
+    blockers_file = root / "HUMAN_NEEDED.md"
+    if blockers_file.exists():
+        try:
+            content = blockers_file.read_text()
+            summary["blockers"] = len(re.findall(r"^## HN-", content, re.MULTILINE))
+        except Exception:
+            pass
+
+    # Get current focus from STATUS.md
+    status_file = root / "STATUS.md"
+    if status_file.exists():
+        try:
+            content = status_file.read_text()
+            # Try to find current focus
+            focus_match = re.search(r"(?:Current [Ff]ocus|## Current Focus)[:\s]*(.+?)(?:\n|$)", content)
+            if focus_match:
+                summary["current_focus"] = focus_match.group(1).strip()[:100]
+        except Exception:
+            pass
+
+    return summary
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agentic Framework health check")
     parser.add_argument('--full', action='store_true', help='Run full verification (includes verify.py checks)')
@@ -688,12 +909,27 @@ def main() -> int:
                         help='Run phase-specific checks')
     parser.add_argument('--pre-commit', action='store_true', help='Run pre-commit checks')
     parser.add_argument('--quick', action='store_true', help='Quick health check (default)')
+    parser.add_argument('--summary', action='store_true', help='One-line summary for session greeting')
     parser.add_argument('feature_id', nargs='?', help='Feature ID (e.g., F-0001) for phase checks')
     args = parser.parse_args()
 
     root = Path.cwd()
-    profile = read_profile(root)
+    profile = get_setting(root, "profile", "discovery")
     detected_stack = None  # Will be set if stack detection runs
+
+    # Handle --summary mode (for session greeting)
+    if args.summary:
+        summary = run_summary_check(root)
+        print(summary["verification"])
+        if summary["wip_active"]:
+            print("WIP: Active (previous work interrupted)")
+        if summary["agents_active"] > 0:
+            print(f"Multi-agent: {summary['agents_active']} agent(s) active")
+        if summary["blockers"] > 0:
+            print(f"Blockers: {summary['blockers']} item(s) need human input")
+        if summary["current_focus"]:
+            print(f"Focus: {summary['current_focus']}")
+        return 0
 
     # Handle --phase mode (context-aware checks)
     if args.phase:
@@ -723,7 +959,7 @@ def main() -> int:
     empty_files: list[Check] = []
     template_like: list[Check] = []
 
-    checks = checks_for_profile(profile)
+    checks = checks_for_profile(profile, root)
     for c in checks:
         p = root / c.path
         if c.kind == "dir":
@@ -771,6 +1007,29 @@ def main() -> int:
         for c in template_like:
             print(f"- {c.path} ({c.purpose})")
 
+    # === Check for unapproved onboarding proposals ===
+    proposal_files = []
+    for fname in ["STACK.md", "CONTEXT_PACK.md", "OVERVIEW.md"]:
+        fpath = root / fname
+        if fpath.exists():
+            try:
+                if "<!-- PROPOSAL" in fpath.read_text(encoding="utf-8")[:200]:
+                    proposal_files.append(fname)
+            except Exception:
+                pass
+    if (root / "spec" / "FEATURES.md").exists():
+        try:
+            if "<!-- PROPOSAL" in (root / "spec" / "FEATURES.md").read_text(encoding="utf-8")[:200]:
+                proposal_files.append("spec/FEATURES.md")
+        except Exception:
+            pass
+
+    if proposal_files:
+        print(f"\nOnboarding proposals ({len(proposal_files)} file(s) pending review):")
+        for pf in proposal_files:
+            print(f"  - {pf}")
+        print("  Run: ag approve-onboarding")
+
     # === Validations for BOTH profiles ===
     validation_issues = []
     suggestions = []
@@ -795,8 +1054,9 @@ def main() -> int:
     if stack_suggestions:
         suggestions.extend(stack_suggestions)
 
-    # === Profile-specific validations ===
-    if profile == "core+product":
+    # === Feature-tracking validations ===
+    ft = get_setting(root, "feature_tracking", "no")
+    if ft == "yes":
         features_issues = validate_features(root)
         validation_issues.extend(features_issues)
 
@@ -815,8 +1075,11 @@ def main() -> int:
 
         nfr_issues = validate_nfr_refs(root)
         validation_issues.extend(nfr_issues)
+
+        nfr_content_issues = validate_nfr_content(root)
+        validation_issues.extend(nfr_content_issues)
     else:
-        print("\nNote: Core profile — formal PM validations (spec/FEATURES.md, acceptance files) skipped.")
+        print("\nNote: Feature tracking off — formal validations (spec/FEATURES.md, acceptance files) skipped.")
 
     if validation_issues:
         print("\nValidation issues:")
@@ -849,7 +1112,7 @@ def main() -> int:
     else:
         print("\nNext commands:")
         print("- bash .agentic/tools/brief.sh")
-        if profile == "core+product":
+        if ft == "yes":
             print("- bash .agentic/tools/report.sh")
         print("- bash .agentic/tools/doctor.sh --full  # comprehensive check")
 

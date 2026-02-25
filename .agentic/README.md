@@ -10,7 +10,9 @@ This folder is a **portable framework** you can copy into any repository to boot
 
 ## Two Profiles: Choose What Fits Your Project
 
-### Core Profile (Default - Simple Setup)
+Profiles are **presets** that set bundles of defaults. You can override any individual setting: `ag set feature_tracking yes`. See `ag set --show` for all settings and their sources.
+
+### Discovery Profile (Default - Simple Setup)
 **Purpose**: Make agents work better on ANY project - quality, workflows, multi-agent
 
 **What you get**:
@@ -19,7 +21,7 @@ This folder is a **portable framework** you can copy into any repository to boot
 - Multi-agent coordination (multiple agents working in parallel)
 - Research mode (deep investigation)
 - Git workflow (PR mode or direct commits)
-- Lightweight planning (PRODUCT.md - what you're building, what's done)
+- Lightweight planning (OVERVIEW.md - what you're building, what's done)
 - Architecture docs (CONTEXT_PACK.md)
 - Escalation protocol (HUMAN_NEEDED.md)
 - Session continuity (JOURNAL.md)
@@ -31,10 +33,10 @@ This folder is a **portable framework** you can copy into any repository to boot
 - Solo developers who don't need formal tracking
 - Quick experiments and MVPs
 
-### Core + Product Management (For Complex Projects)
+### Formal Profile (For Complex Projects)
 **Purpose**: Add formal project tracking for long-term development
 
-**Adds to Core**:
+**Adds to Discovery**:
 - Specs & feature tracking (FEATURES.md with F-#### IDs)
 - Requirements & acceptance criteria
 - Project status & roadmap (STATUS.md)
@@ -48,7 +50,9 @@ This folder is a **portable framework** you can copy into any repository to boot
 - Complex products requiring traceability
 - Projects needing audit trails and formal specs
 
-**Enable later**: `bash .agentic/tools/enable-product-management.sh`
+**Enable later**: `bash .agentic/tools/enable-formal.sh`
+
+**Customize settings**: See [`DEVELOPER_GUIDE.md` → Settings System](DEVELOPER_GUIDE.md#settings-system) for resolution order, profile defaults, and constraints.
 
 ## What you get
 - **A repo init protocol** (agent-guided) that creates stable context artifacts: `STACK.md`, `CONTEXT_PACK.md`, `STATUS.md`, `JOURNAL.md`, `spec/`, `spec/adr/`.
@@ -73,7 +77,7 @@ This framework now includes advanced features for long-term, complex software:
 - **Session continuity**: JOURNAL.md tracks progress across context resets
 - **Dependency tracking**: Feature dependencies with visualization
 - **Human escalation**: HUMAN_NEEDED.md for decisions requiring human input
-- **Architecture evolution**: Track changes over time with arch_diff.sh
+- **Architecture evolution**: Track changes with CONTEXT_PACK.md snapshots
 - **Research trails**: Structured research documentation
 - **Scaling guidance**: Suggestions when project complexity crosses thresholds
 - **Automated retrospectives**: Periodic project health checks and improvement suggestions
@@ -114,8 +118,8 @@ See [`.agentic/workflows/tdd_mode.md`](workflows/tdd_mode.md) for complete TDD g
 
 ```bash
 # Download latest release
-curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v0.2.1.tar.gz | tar xz
-cd agentic-framework-0.2.1
+curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v<VERSION>.tar.gz | tar xz
+cd agentic-framework-<VERSION>
 
 # Install into your project
 bash install.sh /path/to/your-project
@@ -125,10 +129,10 @@ bash install.sh /path/to/your-project
 
 ```bash
 # Download and extract
-curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v0.2.1.tar.gz | tar xz
+curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v<VERSION>.tar.gz | tar xz
 
 # Copy .agentic/ into your project
-cp -r agentic-framework-0.2.1/.agentic /path/to/your-project/
+cp -r agentic-framework-<VERSION>/.agentic /path/to/your-project/
 ```
 
 **Initialize:**
@@ -139,9 +143,9 @@ Tell your agent:
 
 **That's it!** The agent will:
 - Ask what you're building
-- Ask which profile you want (Core or Core+PM) and explain the differences
+- Ask which profile you want (Discovery or Formal) and explain the differences
 - Interview you about your tech stack and requirements
-- Fill in `STACK.md`, `PRODUCT.md`, `CONTEXT_PACK.md` (and `spec/` if Core+PM)
+- Fill in `STACK.md`, `OVERVIEW.md`, `CONTEXT_PACK.md` (and `spec/` if Formal)
 - Set up quality validation for your stack
 
 The agent follows `.agentic/init/init_playbook.md` which guides it through the entire initialization process.
@@ -150,9 +154,9 @@ The agent follows `.agentic/init/init_playbook.md` which guides it through the e
 
 If you used `install.sh`, templates are already created. Otherwise, the agent will:
 1. **Run scaffold**: `bash .agentic/init/scaffold.sh` (creates all template files)
-2. **Ask about profile**: Explain Core vs Core+PM and help you choose
+2. **Ask about profile**: Explain Discovery vs Formal and help you choose
 3. **Ask questions**: What are you building? What tech stack? Performance constraints? etc.
-4. **Fill in docs**: `STACK.md`, `PRODUCT.md`, `CONTEXT_PACK.md` (and `spec/` if Core+PM)
+4. **Fill in docs**: `STACK.md`, `OVERVIEW.md`, `CONTEXT_PACK.md` (and `spec/` if Formal)
 5. **Set up quality checks**: Create stack-specific `quality_checks.sh` if applicable
 6. **Ready to develop**: You're ready to start building
 
@@ -164,8 +168,8 @@ If you're using multiple assistants (Cursor + Copilot + Claude), refer to `.agen
 
 ```bash
 # Download new version
-curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v0.2.1.tar.gz | tar xz
-cd agentic-framework-0.2.1
+curl -L https://github.com/tomgun/agentic-framework/archive/refs/tags/v<VERSION>.tar.gz | tar xz
+cd agentic-framework-<VERSION>
 
 # Run upgrade tool FROM the new framework, pointing to your project
 bash .agentic/tools/upgrade.sh /path/to/your-project
@@ -211,23 +215,15 @@ bash .agentic/tools/sync_docs.sh
 
 ## User Workflows: How to Work with Agents
 
-**⭐ New user? Start here**: [`workflows/USER_WORKFLOWS.md`](workflows/USER_WORKFLOWS.md)
-
-Complete guide covering:
-- How to add new features (edit specs yourself or ask agent)
-- How to update specs and acceptance criteria
-- How agents pick up your changes (YES, they do!)
-- TDD workflow
-- Sequential agent pipeline
-- Common questions and troubleshooting
+**⭐ Complete guide**: [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) — covers adding features, updating specs, TDD workflow, agent pipeline, troubleshooting, and common questions.
 
 ### Ready-to-Use AI Prompts
 
 **Cursor Users**: See [`prompts/cursor/`](prompts/cursor/) for copy-paste workflow prompts:
 - `session_start.md` / `session_end.md` - Session management
 - `feature_start.md` / `feature_test.md` / `feature_complete.md` - Feature development (TDD)
-- `migration_create.md` - Spec migrations (Core+PM mode)
-- `product_update.md` / `quick_feature.md` - Core mode workflows
+- `migration_create.md` - Spec migrations (Formal mode)
+- `product_update.md` / `quick_feature.md` - Discovery mode workflows
 - `research.md` / `plan_feature.md` - Deep research and planning
 - `run_quality.md` / `fix_issues.md` / `retrospective.md` - Quality & maintenance
 
@@ -258,69 +254,44 @@ Complete guide covering:
 
 ## Tools and automation
 
-From repo root:
+30+ scripts in `.agentic/tools/`. Key categories:
+- **Health**: `doctor.sh`, `report.sh`, `verify.sh`
+- **Traceability**: `ag trace`, `coverage.sh`, `drift.sh`
+- **Analysis**: `feature_graph.sh`, `stale.sh`, `deps.sh`
 
-```bash
-# Project health and verification
-bash .agentic/tools/doctor.sh      # Check structure
-bash .agentic/tools/report.sh      # Feature status
-bash .agentic/tools/verify.sh      # Comprehensive checks
-
-# Context and analysis
-bash .agentic/tools/brief.sh       # Quick project brief
-python3 .agentic/tools/continue_here.py  # Generate .continue-here.md for next session
-bash .agentic/tools/coverage.sh    # Code annotation coverage
-bash .agentic/tools/feature_graph.sh   # Feature dependency graph
-bash .agentic/tools/arch_diff.sh   # Architecture changes
-
-# Documentation
-bash .agentic/tools/sync_docs.sh   # Generate doc scaffolding
-
-# Retrospective
-bash .agentic/tools/retro_check.sh  # Check if retrospective is due
-
-# Version verification
-bash .agentic/tools/version_check.sh # Check dependency versions match STACK.md
-
-# Spec validation
-python3 .agentic/tools/validate_specs.py  # Validate spec frontmatter
-
-# Spec migrations (Core+PM mode, optional)
-bash .agentic/tools/migration.sh create "Add Feature X"  # Create new migration
-bash .agentic/tools/migration.sh list                    # List all migrations
-bash .agentic/tools/migration.sh show 001                # Show specific migration
-bash .agentic/tools/migration.sh search "keyword"        # Search migrations
-```
+Run `ag tools` or see [`DEVELOPER_GUIDE.md#automation--scripts`](DEVELOPER_GUIDE.md#automation--scripts) for full documentation.
 
 ## Troubleshooting
 
-**Can't find what you need?**
-- Read [`START_HERE.md`](START_HERE.md) for guided navigation
-- See [`FRAMEWORK_MAP.md`](FRAMEWORK_MAP.md) for visual overview
-- Check tools with `bash .agentic/tools/doctor.sh`
+See [`DEVELOPER_GUIDE.md#troubleshooting`](DEVELOPER_GUIDE.md#troubleshooting) for common issues.
+Quick navigation: [`START_HERE.md`](START_HERE.md) | Visual overview: [`FRAMEWORK_MAP.md`](FRAMEWORK_MAP.md)
 
-**Agent keeps re-reading everything?**
-- Ensure `CONTEXT_PACK.md` is comprehensive
-- Use `@feature` annotations in code
-- Follow `.agentic/token_efficiency/reading_protocols.md`
+## Design Principles
 
-**Project getting complex?**
-- See `.agentic/workflows/scaling_guidance.md` for reorganization suggestions
-- Run `bash .agentic/tools/feature_graph.sh` to visualize dependencies  
+**📖 Full guide: [`PRINCIPLES.md`](PRINCIPLES.md)** ⭐
 
-## Design principles (first principles)
+13 principles in a derivation hierarchy (3 FOUNDATION + 7 DESIGN PRINCIPLES + 3 OPERATIONAL RULES, all mandatory):
 
-**📖 For comprehensive principles guide, see [`PRINCIPLES.md`](PRINCIPLES.md)** ⭐
+**FOUNDATION** (WHY — the reasons this framework exists):
+- **F1: Developer-Friendly Experience** — Framework remembers so developers don't have to
+- **F2: Sustainable Long-Term Development & Quality Software** — Tested, documented, reliable over time
+- **F3: Token & Context Optimization** — Token-efficient scripts and reading protocols
 
-The short version:
-- **Feedback loops** beat cleverness: tests and small diffs reduce risk.
-- **Entropy is real**: decisions must be recorded, status must be current.
-- **Context is expensive**: durable artifacts reduce repeated token spend.
-- **Agents need a contract**: consistent behavior across tools avoids thrash.
-- **Human-agent partnership**: Collaboration, not replacement.
-- **Quality by design**: TDD, stack-specific checks, acceptance validation.
+**DESIGN PRINCIPLES** (HOW — strategies that serve the foundations):
+- **D1: Human-Agent Partnership** — Collaboration, not AI autonomy
+- **D2: Deterministic Enforcement** — Scripts with exit codes, not suggestions
+- **D3: Durable Artifacts** — CONTEXT_PACK, STATUS, JOURNAL always current
+- **D4: Small Batch + Acceptance-Driven** — One feature at a time, criteria first
+- **D5: Living Documentation** — Docs updated in same commit as code
+- **D6: Green Coding** — Minimize environmental impact
+- **D7: Multi-Environment Portability** — Same state and enforcement across all AI tools
 
-See PRINCIPLES.md for the "why" behind every framework decision.
+**OPERATIONAL RULES** (WHAT — concrete, testable constraints):
+- **R1: Anti-Hallucination** — Verify before using, never fabricate
+- **R2: No Auto-Commits** — Human approval required
+- **R3: Check Before Creating** — Search for existing before adding new
+
+See PRINCIPLES.md for the derivation DAG and reasoning behind every framework decision.
 
 ## Adoption notes
 - This framework is intentionally **tech-agnostic**. Where stack specifics matter, use:
