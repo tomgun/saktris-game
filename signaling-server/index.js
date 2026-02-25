@@ -11,6 +11,7 @@
  */
 
 const { WebSocketServer } = require("ws");
+const http = require("http");
 
 const PORT = process.env.PORT || 8080;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,9 +49,22 @@ function sendJson(ws, data) {
   }
 }
 
-const wss = new WebSocketServer({ port: PORT });
+// HTTP server for health checks (required by Render/hosting platforms)
+const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", rooms: rooms.size }));
+  } else {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Saktris Signaling Server");
+  }
+});
 
-console.log(`Saktris Signaling Server running on port ${PORT}`);
+const wss = new WebSocketServer({ server });
+
+server.listen(PORT, () => {
+  console.log(`Saktris Signaling Server running on port ${PORT}`);
+});
 
 wss.on("connection", (ws) => {
   console.log("Client connected");

@@ -36,6 +36,7 @@ func _init() -> void:
 	# Connect peer signals
 	_peer.session_description_created.connect(_on_session_description_created)
 	_peer.ice_candidate_created.connect(_on_ice_candidate_created)
+	_peer.data_channel_received.connect(_on_data_channel_received)
 
 
 func poll() -> void:

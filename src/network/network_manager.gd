@@ -17,7 +17,7 @@ enum ConnectionState {
 	ERROR
 }
 
-const SIGNALING_SERVER_URL := "wss://saktris-signaling.your-server.workers.dev"  # TODO: Update with actual URL
+const SIGNALING_SERVER_URL := "wss://saktris-signaling.onrender.com"
 
 var _signaling  # SignalingClient instance
 var _webrtc     # WebRTCClient instance
