@@ -22,7 +22,7 @@ var my_side: int = Piece.Side.WHITE
 signal new_game_requested
 
 
-const BUILD_ID := "2026-02-25T01:00"
+const BUILD_ID := "2026-02-25T01:15"
 
 func _ready() -> void:
 	print("Saktris v0.1.0 [build %s]" % BUILD_ID)

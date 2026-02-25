@@ -92,11 +92,6 @@ func _on_visual_theme_changed(_theme: Resource) -> void:
 
 func _update_visual_theme() -> void:
 	## Apply or remove neon glow shader based on current visual theme
-	## Neon glow is disabled on web builds — the shader (33 texture samples/pixel)
-	## is too expensive for WebGL and causes the frame to stall.
-	if OS.has_feature("web"):
-		material = null
-		return
 	var theme := ThemeManager.get_current_visual_theme() if ThemeManager else null
 	if theme and theme.neon_glow_enabled:
 		var neon_mat := NeonOutlineMaterial.duplicate() as ShaderMaterial
