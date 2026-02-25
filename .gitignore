@@ -53,6 +53,9 @@ agentic-backup-*/
 # Asset import cache (regenerated)
 .import/
 
+# Node.js (signaling server)
+node_modules/
+
 # Local environment
 .env
 .env.local
