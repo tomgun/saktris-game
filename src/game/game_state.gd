@@ -330,7 +330,12 @@ func _bump_column_forward(col: int, side: int) -> void:
 	# Find all pieces in this column, from far end to back row
 	var pieces_to_move: Array = []
 	var current_row := far_row
+	var guard := 0
 	while current_row != back_row + direction:
+		guard += 1
+		if guard > Board.BOARD_SIZE + 1:
+			push_warning("_bump_column_forward: iteration guard hit")
+			break
 		var pos := Vector2i(col, current_row)
 		var p := board.get_piece(pos)
 		if p != null:
@@ -747,9 +752,14 @@ func request_ai_move() -> void:
 		_ai_thread = Thread.new()
 		_ai_thread.start(_calculate_ai_move_threaded.bind(board_data, arrival_data, ai_side_copy, ai_difficulty_copy, ai_max_depth_copy))
 
-		# Poll for completion without blocking
+		# Poll for completion without blocking (with watchdog)
+		var watchdog_frames := 0
 		while _ai_thread.is_alive():
 			await Engine.get_main_loop().process_frame
+			watchdog_frames += 1
+			if watchdog_frames > 600:  # ~10s at 60fps
+				push_warning("[AI] Watchdog: thread still alive after 10s, breaking poll loop")
+				break
 
 		# Get result and clean up thread
 		_ai_thread.wait_to_finish()
@@ -758,6 +768,11 @@ func request_ai_move() -> void:
 
 	_ai_calculating = false
 	ai_thinking_finished.emit()
+
+	# Fallback if AI returned empty or invalid result
+	if move.is_empty() or (move.has("from") and move["from"] == Vector2i(-1, -1) and not move.has("column")):
+		push_warning("[AI] Empty or invalid result, using fallback move")
+		move = _get_fallback_move()
 
 	# Execute the move
 	if move.has("column") and move["column"] >= 0:
@@ -874,6 +889,29 @@ func _calculate_move_threaded(thread_board: Board, thread_ai: ChessAI) -> Dictio
 		alpha = max(alpha, score)
 
 	return best_move
+
+
+func _get_fallback_move() -> Dictionary:
+	## Returns a simple legal move for the AI side when the main search fails
+	# Check placement first
+	var arriving := arrival_manager.get_current_piece(ai_side)
+	if arriving != null:
+		var back_row := 0 if ai_side == Piece.Side.WHITE else 7
+		for col in range(Board.BOARD_SIZE):
+			if board.can_place_piece_at(Vector2i(col, back_row), arriving):
+				return {"column": col}
+
+	# Return first legal move
+	for row in range(Board.BOARD_SIZE):
+		for col in range(Board.BOARD_SIZE):
+			var pos := Vector2i(col, row)
+			var piece := board.get_piece(pos)
+			if piece and piece.side == ai_side:
+				var moves := board.get_legal_moves(pos)
+				if moves.size() > 0:
+					return {"from": pos, "to": moves[0]}
+
+	return {"from": Vector2i(-1, -1), "to": Vector2i(-1, -1)}
 
 
 func _on_ai_progress(percent: float) -> void:
@@ -1092,7 +1130,12 @@ func _find_first_piece_in_direction(triplet: Array[Vector2i], dir: Vector2i) -> 
 		edge_pos = triplet[0]   # Leftmost or topmost
 
 	var check := edge_pos + dir
+	var guard := 0
 	while board.is_valid_position(check):
+		guard += 1
+		if guard > Board.BOARD_SIZE:
+			push_warning("_find_first_piece_in_direction: iteration guard hit")
+			break
 		if board.get_piece(check) != null:
 			return check
 		check += dir

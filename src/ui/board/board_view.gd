@@ -26,6 +26,7 @@ var hovered_column: int = -1  # Column currently being hovered for piece placeme
 var recent_collisions: Dictionary = {}  # Track recent collisions to avoid spark spam
 var dragging_sprite: PieceSprite = null  # Currently dragged piece
 var drag_was_new_selection: bool = false  # Track if drag_started created a new selection
+var _active_tweens: Array[Tween] = []  # Track tweens for cleanup on exit
 
 # Mobile layout state
 const MOBILE_BREAKPOINT := 800
@@ -116,6 +117,22 @@ var grid_lines: Array = []
 @onready var mobile_about_button: Button = %MobileAboutButton
 
 signal new_game_requested
+
+
+func _create_tracked_tween() -> Tween:
+	## Create a tween and track it so we can kill all on exit
+	# Prune finished tweens
+	_active_tweens = _active_tweens.filter(func(t: Tween) -> bool: return t.is_valid() and t.is_running())
+	var tween := create_tween()
+	_active_tweens.append(tween)
+	return tween
+
+
+func _exit_tree() -> void:
+	for tween in _active_tweens:
+		if tween.is_valid():
+			tween.kill()
+	_active_tweens.clear()
 
 
 func set_online_mode(enabled: bool, side: int) -> void:
@@ -844,12 +861,12 @@ func _spawn_motion_trail(from_pos: Vector2, to_pos: Vector2, side: int) -> void:
 		side_trail.add_point(to_pos + center_offset + side_offset)
 
 		# Fade and remove side trail
-		var side_tween := create_tween()
+		var side_tween := _create_tracked_tween()
 		side_tween.tween_property(side_trail, "modulate:a", 0.0, 0.3).set_delay(0.1)
 		side_tween.tween_callback(side_trail.queue_free)
 
 	# Fade and remove main trail
-	var tween := create_tween()
+	var tween := _create_tracked_tween()
 	tween.tween_property(trail, "modulate:a", 0.0, 0.35).set_delay(0.05)
 	tween.tween_callback(trail.queue_free)
 
@@ -993,7 +1010,7 @@ func _on_piece_placed(pos: Vector2i, piece: Piece) -> void:
 		ghost_piece.visible = false
 
 		# Animate drop
-		var tween := create_tween()
+		var tween := _create_tracked_tween()
 		tween.set_parallel(true)
 		tween.set_ease(Tween.EASE_OUT)
 		tween.set_trans(Tween.TRANS_BOUNCE)
@@ -1030,7 +1047,7 @@ func _on_triplet_clearing(triplet_positions: Array, victim_pos: Vector2i, direct
 			var target := sprite.position + exit_offset
 
 			# Create tween for smooth exit
-			var tween := create_tween()
+			var tween := _create_tracked_tween()
 			tween.tween_property(sprite, "position", target, 0.5).set_delay(start_delay).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 			tween.parallel().tween_property(sprite, "modulate:a", 0.0, 0.3).set_delay(start_delay + 0.3)
 			tween.tween_callback(sprite.queue_free)
@@ -1244,7 +1261,7 @@ func _add_glow_animation(node: Line2D, glow_color: Color) -> void:
 	## Uses a non-looping tween (3 cycles) instead of set_loops() which causes
 	## orphaned infinite tweens on the web build when indicators are freed.
 	node.default_color = glow_color
-	var tween := create_tween().set_loops(6)
+	var tween := _create_tracked_tween().set_loops(6)
 	tween.tween_property(node, "modulate:a", 0.5, 0.5).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(node, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
 
@@ -2445,7 +2462,7 @@ func _on_action_piece_auto_placed(side: int, column: int, piece: Piece) -> void:
 	highlights_layer.add_child(flash)
 
 	# Fade out
-	var tween := create_tween()
+	var tween := _create_tracked_tween()
 	tween.tween_property(flash, "modulate:a", 0.0, 0.3)
 	tween.tween_callback(flash.queue_free)
 

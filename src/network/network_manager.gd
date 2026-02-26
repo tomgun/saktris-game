@@ -33,6 +33,10 @@ var _my_side: int = Piece.Side.WHITE  # Which side we play
 
 const PING_INTERVAL := 5.0
 const ACK_TIMEOUT := 10.0
+const MAX_CONNECT_RETRIES := 12   # ~1 min of retries at 5s intervals
+const RETRY_DELAY_SEC := 5.0
+
+var _connect_retries: int = 0
 
 # Signals for UI/game integration
 signal state_changed(new_state: ConnectionState)
@@ -132,6 +136,7 @@ func connect_to_server() -> void:
 		push_warning("NetworkManager: Already connecting or connected")
 		return
 
+	_connect_retries = 0
 	_set_state(ConnectionState.CONNECTING_TO_SERVER)
 	_signaling.connect_to_server(SIGNALING_SERVER_URL)
 
@@ -172,6 +177,7 @@ func leave_room() -> void:
 
 func disconnect_from_game() -> void:
 	## Disconnect completely
+	_connect_retries = 0
 	_signaling.disconnect_from_server()
 	_webrtc.close()
 	_room_code = ""
@@ -281,10 +287,14 @@ func _send(data: PackedByteArray) -> void:
 # ─────────────────────────────────────────────────────────────────────────────
 
 func _on_signaling_connected() -> void:
+	_connect_retries = 0
 	_set_state(ConnectionState.IN_LOBBY)
 
 
 func _on_signaling_disconnected() -> void:
+	if _state == ConnectionState.CONNECTING_TO_SERVER and _connect_retries < MAX_CONNECT_RETRIES:
+		_schedule_retry()
+		return
 	if _state != ConnectionState.CONNECTED:
 		# If not P2P connected, we lost connection
 		_set_state(ConnectionState.DISCONNECTED)
@@ -292,7 +302,22 @@ func _on_signaling_disconnected() -> void:
 
 func _on_signaling_error(message: String) -> void:
 	push_error("NetworkManager: Signaling error - %s" % message)
+	if _state == ConnectionState.CONNECTING_TO_SERVER and _connect_retries < MAX_CONNECT_RETRIES:
+		_schedule_retry()
+		return
 	_set_state(ConnectionState.ERROR)
+
+
+func _schedule_retry() -> void:
+	_connect_retries += 1
+	print("NetworkManager: Retry %d/%d in %ds..." % [_connect_retries, MAX_CONNECT_RETRIES, RETRY_DELAY_SEC])
+	get_tree().create_timer(RETRY_DELAY_SEC).timeout.connect(_retry_connect)
+
+
+func _retry_connect() -> void:
+	if _state != ConnectionState.CONNECTING_TO_SERVER:
+		return  # User cancelled or state changed
+	_signaling.connect_to_server(SIGNALING_SERVER_URL)
 
 
 func _on_room_created(code: String) -> void:

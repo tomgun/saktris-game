@@ -38,6 +38,7 @@ func connect_to_server(url: String) -> void:
 	_server_url = url
 	_state = State.CONNECTING
 
+	_socket = WebSocketPeer.new()  # Fresh socket for each attempt
 	var err := _socket.connect_to_url(url)
 	if err != OK:
 		_state = State.ERROR

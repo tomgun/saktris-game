@@ -204,7 +204,12 @@ func _get_bishop_moves(pos: Vector2i, side: int) -> Array[Vector2i]:
 func _get_sliding_moves(pos: Vector2i, direction: Vector2i, side: int) -> Array[Vector2i]:
 	var moves: Array[Vector2i] = []
 	var current := pos + direction
+	var guard := 0
 	while is_valid_position(current):
+		guard += 1
+		if guard > BOARD_SIZE:
+			push_warning("_get_sliding_moves: iteration guard hit")
+			break
 		if is_empty(current):
 			moves.append(current)
 		elif is_enemy(current, side):
@@ -503,7 +508,12 @@ func _find_consecutive_same_type(center: Vector2i, dir: Vector2i, piece_type: in
 
 	# Search in positive direction
 	var check := center + dir
+	var guard := 0
 	while is_valid_position(check):
+		guard += 1
+		if guard > BOARD_SIZE:
+			push_warning("_find_consecutive_same_type: positive direction guard hit")
+			break
 		var p := get_piece(check)
 		if p and p.type == piece_type:
 			positions.append(check)
@@ -513,7 +523,12 @@ func _find_consecutive_same_type(center: Vector2i, dir: Vector2i, piece_type: in
 
 	# Search in negative direction
 	check = center - dir
+	guard = 0
 	while is_valid_position(check):
+		guard += 1
+		if guard > BOARD_SIZE:
+			push_warning("_find_consecutive_same_type: negative direction guard hit")
+			break
 		var p := get_piece(check)
 		if p and p.type == piece_type:
 			positions.insert(0, check)

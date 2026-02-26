@@ -26,6 +26,13 @@ const YIELD_EVERY_N_NODES := 50  # Yield to UI every N nodes evaluated
 var _nodes_evaluated: int = 0
 var _total_nodes_estimate: int = 0
 
+## Search abort guards
+const MAX_NODES := 10000  # Hard ceiling on minimax nodes
+const TIMEOUT_WEB_MS := 3000  # Max search time on web
+const TIMEOUT_NATIVE_MS := 5000  # Max search time on native
+var _search_start_time: int = 0
+var _search_aborted: bool = false
+
 var difficulty: Difficulty = Difficulty.MEDIUM
 var max_depth: int = 3
 var side: int = Piece.Side.BLACK
@@ -86,6 +93,8 @@ func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
 
 	# Reset node counter for progress tracking
 	_nodes_evaluated = 0
+	_search_start_time = Time.get_ticks_msec()
+	_search_aborted = false
 	# Rough estimate: each top-level move explores ~30^depth nodes (with pruning ~10^depth)
 	_total_nodes_estimate = total * int(pow(10, max_depth - 1))
 
@@ -102,6 +111,14 @@ func _get_best_regular_move_async(game_state: GameState) -> Dictionary:
 
 		alpha = max(alpha, score)
 
+		if _search_aborted:
+			break
+
+	# Fallback if aborted before finding any move
+	if _search_aborted and best_move["from"] == Vector2i(-1, -1) and all_moves.size() > 0:
+		push_warning("[AI] Search aborted, using random fallback move")
+		best_move = all_moves[0]  # Already shuffled = effectively random
+
 	progress_updated.emit(1.0)
 	return best_move
 
@@ -116,6 +133,15 @@ func _minimax_async(board: Board, from: Vector2i, to: Vector2i,
 		var progress := clampf(float(_nodes_evaluated) / _total_nodes_estimate, 0.0, 0.99)
 		progress_updated.emit(progress)
 		await Engine.get_main_loop().process_frame
+
+	# Abort check — hard ceiling on nodes and wall-clock time
+	if _search_aborted:
+		return 0.0
+	var timeout_ms := TIMEOUT_WEB_MS if OS.has_feature("web") else TIMEOUT_NATIVE_MS
+	if _nodes_evaluated >= MAX_NODES or (Time.get_ticks_msec() - _search_start_time) > timeout_ms:
+		_search_aborted = true
+		push_warning("[AI] Search aborted: nodes=%d, elapsed=%dms" % [_nodes_evaluated, Time.get_ticks_msec() - _search_start_time])
+		return 0.0
 
 	# Make the move on the board (will be undone before returning)
 	var move_data := board.make_move(from, to)
@@ -245,6 +271,11 @@ func _get_best_regular_move(game_state: GameState) -> Dictionary:
 	# Shuffle for variety when moves have equal scores
 	all_moves.shuffle()
 
+	# Initialize search guards
+	_nodes_evaluated = 0
+	_search_start_time = Time.get_ticks_msec()
+	_search_aborted = false
+
 	for move in all_moves:
 		var score := _minimax(game_state.board, move["from"], move["to"],
 							  max_depth - 1, alpha, beta, false)
@@ -255,6 +286,14 @@ func _get_best_regular_move(game_state: GameState) -> Dictionary:
 
 		alpha = max(alpha, score)
 
+		if _search_aborted:
+			break
+
+	# Fallback if aborted before finding any move
+	if _search_aborted and best_move["from"] == Vector2i(-1, -1) and all_moves.size() > 0:
+		push_warning("[AI] Sync search aborted, using random fallback move")
+		best_move = all_moves[0]
+
 	return best_move
 
 
@@ -262,6 +301,15 @@ func _minimax(board: Board, from: Vector2i, to: Vector2i,
 			  depth: int, alpha: float, beta: float, is_maximizing: bool) -> float:
 	## Minimax with alpha-beta pruning
 	## Uses make_move/undo_move pattern for efficiency (no board copying)
+
+	# Abort check — hard ceiling on nodes and wall-clock time
+	_nodes_evaluated += 1
+	if _search_aborted:
+		return 0.0
+	if _nodes_evaluated >= MAX_NODES or (Time.get_ticks_msec() - _search_start_time) > TIMEOUT_NATIVE_MS:
+		_search_aborted = true
+		push_warning("[AI] Sync search aborted: nodes=%d, elapsed=%dms" % [_nodes_evaluated, Time.get_ticks_msec() - _search_start_time])
+		return 0.0
 
 	# Make the move on the board (will be undone before returning)
 	var move_data := board.make_move(from, to)

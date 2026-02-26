@@ -185,14 +185,14 @@ func _on_cancel_pressed() -> void:
 
 
 func _start_slow_connect_timer() -> void:
-	_connect_timer = get_tree().create_timer(2.0)
+	_connect_timer = get_tree().create_timer(3.0)
 	_connect_timer.timeout.connect(_on_slow_connect)
 
 
 func _on_slow_connect() -> void:
 	_connect_timer = null
 	if NetworkManager.get_state() == NetworkManager.ConnectionState.CONNECTING_TO_SERVER:
-		status_label.text = "Starting server (may take up to 30s)..."
+		status_label.text = "Server is waking up, this may take up to 1 minute..."
 
 
 func _on_network_state_changed(new_state: NetworkManager.ConnectionState) -> void:

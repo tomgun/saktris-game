@@ -101,19 +101,35 @@ Purpose: a single source of truth for "how we build and run software here".
 - max_apk_size_mb: 50
 - max_html5_size_mb: 30
 
-## Complexity limits
-- max_files_per_commit: 10
-- max_added_lines: 500
-- max_code_file_length: 500
-
 ## Settings
 <!-- Use `ag set <key> <value>` to change, `ag set --show` to view all. -->
+- profile: formal
+<!-- discovery | formal -->
+
+### Workflow
 - feature_tracking: yes
+# F-XXXX tracking, acceptance criteria gates. Profile defaults — Discovery: no | Formal: yes
 - acceptance_criteria: blocking
+# Require criteria before coding. Profile defaults — Discovery: recommended | Formal: blocking
 - wip_before_commit: blocking
+# WIP.md required before commit. Profile defaults — Discovery: warning | Formal: blocking
 - pre_commit_checks: full
-- plan_review_enabled: yes
-- spec_directory: yes
-- docs_gate: blocking
-- max_code_file_length: 500
+# Pre-commit gate depth. Profile defaults — Discovery: fast | Formal: full
+- pre_commit_hook: fast
+# Git hook dispatch mode. Profile defaults — Discovery: fast | Formal: fast
 - git_workflow: direct
+# Commit policy for main branch. Profile defaults — Discovery: direct | Formal: pull_request
+- plan_review_enabled: yes
+# Review plan before implementation. Profile defaults — Discovery: no | Formal: yes
+- spec_directory: yes
+# Create spec/ directory for features. Profile defaults — Discovery: no | Formal: yes
+- docs_gate: blocking
+# Doc staleness check at ag done. Profile defaults — Discovery: off | Formal: blocking
+
+### Complexity limits
+- max_files_per_commit: 10
+# Blocking limit in pre-commit. Profile defaults — Discovery: 15 | Formal: 10
+- max_added_lines: 500
+# Blocking limit for added lines. Profile defaults — Discovery: 1000 | Formal: 500
+- max_code_file_length: 500
+# Blocking limit for single file length. Profile defaults — Discovery: 1000 | Formal: 500

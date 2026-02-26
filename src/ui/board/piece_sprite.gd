@@ -43,6 +43,7 @@ const PIECE_WEIGHTS := {
 
 var piece: Piece
 var board_position: Vector2i
+var _active_tweens: Array[Tween] = []
 
 ## Dragging state
 var is_dragging: bool = false
@@ -99,6 +100,22 @@ func _update_visual_theme() -> void:
 		material = neon_mat
 	else:
 		material = null
+
+
+func _create_tracked_tween() -> Tween:
+	## Create a tween and track it so we can kill all on exit
+	# Prune finished tweens
+	_active_tweens = _active_tweens.filter(func(t: Tween) -> bool: return t.is_valid() and t.is_running())
+	var tween := create_tween()
+	_active_tweens.append(tween)
+	return tween
+
+
+func _exit_tree() -> void:
+	for tween in _active_tweens:
+		if tween.is_valid():
+			tween.kill()
+	_active_tweens.clear()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -185,7 +202,7 @@ func cancel_drag() -> void:
 
 func snap_back() -> void:
 	## Animate back to start position (called after invalid drop)
-	var tween := create_tween()
+	var tween := _create_tracked_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_BACK)
 	tween.tween_property(self, "position", drag_start_pos, 0.2)
@@ -194,7 +211,7 @@ func snap_back() -> void:
 func animate_to(new_pos: Vector2i, target_pixel_pos: Vector2, duration: float = 0.15) -> void:
 	board_position = new_pos
 	is_moving = true
-	var tween := create_tween()
+	var tween := _create_tracked_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.tween_property(self, "position", target_pixel_pos, duration)
@@ -252,7 +269,7 @@ func nudge(push_direction: Vector2, strength: float = 0.3, attacker_weight: floa
 	var return_duration := 1.5 * sqrt(my_weight / 3.0)  # Normalized around bishop/knight
 
 	# Start returning after a tiny delay
-	var tween := create_tween()
+	var tween := _create_tracked_tween()
 	tween.tween_property(self, "position", home_position, return_duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC).set_delay(0.05)
 	tween.tween_callback(func(): is_returning = false)
 
