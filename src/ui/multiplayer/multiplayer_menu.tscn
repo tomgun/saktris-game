@@ -198,6 +198,14 @@ max_length = 6
 placeholder_text = "ABC123"
 caret_blink = true
 
+[node name="JoinRoomButton" type="Button" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 45)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 18
+text = "Join"
+
 [node name="CancelButton2" type="Button" parent="CenterContainer/VBoxContainer/JoinPanel/VBox/MarginContainer/VBox"]
 custom_minimum_size = Vector2(200, 40)
 layout_mode = 2

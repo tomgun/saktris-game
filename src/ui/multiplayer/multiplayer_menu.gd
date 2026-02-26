@@ -19,8 +19,10 @@ signal game_starting(settings: Dictionary, is_host: bool, my_side: int)
 @onready var white_button: Button = %WhiteButton
 @onready var black_button: Button = %BlackButton
 @onready var cancel_button: Button = %CancelButton
+@onready var join_room_button: Button = %JoinRoomButton
 
 var _selected_side: int = Piece.Side.WHITE
+var _connect_timer: SceneTreeTimer = null
 
 
 func _ready() -> void:
@@ -29,6 +31,7 @@ func _ready() -> void:
 	back_button.pressed.connect(_on_back_pressed)
 	cancel_button.pressed.connect(_on_cancel_pressed)
 	copy_button.pressed.connect(_on_copy_pressed)
+	join_room_button.pressed.connect(_on_join_room_button_pressed)
 	white_button.pressed.connect(_on_white_selected)
 	black_button.pressed.connect(_on_black_selected)
 	room_code_input.text_submitted.connect(_on_room_code_submitted)
@@ -113,6 +116,10 @@ func _on_room_code_submitted(code: String) -> void:
 	_try_join_room(code)
 
 
+func _on_join_room_button_pressed() -> void:
+	_try_join_room(room_code_input.text)
+
+
 func _try_join_room(code: String) -> void:
 	code = code.strip_edges().to_upper()
 
@@ -146,7 +153,22 @@ func _on_cancel_pressed() -> void:
 	join_button.disabled = false
 
 
+func _start_slow_connect_timer() -> void:
+	_connect_timer = get_tree().create_timer(2.0)
+	_connect_timer.timeout.connect(_on_slow_connect)
+
+
+func _on_slow_connect() -> void:
+	_connect_timer = null
+	if NetworkManager.get_state() == NetworkManager.ConnectionState.CONNECTING_TO_SERVER:
+		status_label.text = "Starting server (may take up to 30s)..."
+
+
 func _on_network_state_changed(new_state: NetworkManager.ConnectionState) -> void:
+	# Cancel slow-connect timer if we've moved past connecting
+	if new_state != NetworkManager.ConnectionState.CONNECTING_TO_SERVER:
+		_connect_timer = null
+
 	match new_state:
 		NetworkManager.ConnectionState.OFFLINE:
 			status_label.text = "Offline"
@@ -155,6 +177,7 @@ func _on_network_state_changed(new_state: NetworkManager.ConnectionState) -> voi
 
 		NetworkManager.ConnectionState.CONNECTING_TO_SERVER:
 			status_label.text = "Connecting to server..."
+			_start_slow_connect_timer()
 
 		NetworkManager.ConnectionState.IN_LOBBY:
 			status_label.text = "Connected"

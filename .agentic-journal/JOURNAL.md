@@ -51,3 +51,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 10:36 - Multiplayer UX
+
+**Why**: UX polish for join flow and Render cold starts
+
+**Accomplished**:
+- Added Join button to room code input, added slow-connect server wakeup indicator
+
+**Next steps**:
+- E2E multiplayer testing
+
+**Blockers**: None
+
