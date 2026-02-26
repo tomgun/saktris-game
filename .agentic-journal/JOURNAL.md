@@ -433,3 +433,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 11:12 - Framework 0.33.2
+
+**Why**: Patch fixes false positive we hit with upgrade.sh
+
+**Accomplished**:
+- Upgraded to 0.33.2 - fixes pre-commit file length check for framework files
+
+**Next steps**:
+- Multiplayer testing
+
+**Blockers**: None
+
