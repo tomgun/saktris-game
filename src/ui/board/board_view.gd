@@ -1142,8 +1142,8 @@ func _update_arrival_display() -> void:
 	if arrival_panel:
 		arrival_panel.visible = false
 
-	# Show or clear placement highlights
-	if can_place and not game_state.is_ai_turn():
+	# Show or clear placement highlights (hide during opponent's turn in online mode)
+	if can_place and not game_state.is_ai_turn() and not is_remote_turn():
 		_show_placement_highlights()
 	else:
 		_clear_placement_highlights()
@@ -1160,9 +1160,10 @@ func _update_queue_display() -> void:
 	for child in queue_container.get_children():
 		child.queue_free()
 
-	# Get upcoming pieces
+	# Get upcoming pieces (in online mode, always show our own queue)
+	var preview_side := my_side if is_online_mode else game_state.current_player
 	var preview_count := Settings.piece_preview_count
-	var upcoming := game_state.arrival_manager.get_upcoming_pieces(game_state.current_player, preview_count)
+	var upcoming := game_state.arrival_manager.get_upcoming_pieces(preview_side, preview_count)
 
 	# Create preview sprites
 	for piece_type in upcoming:
@@ -1170,7 +1171,7 @@ func _update_queue_display() -> void:
 		preview.custom_minimum_size = Vector2(48, 48)
 		preview.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		preview.texture = _get_piece_texture(piece_type, game_state.current_player)
+		preview.texture = _get_piece_texture(piece_type, preview_side)
 		queue_container.add_child(preview)
 
 	# Show/hide queue panel based on whether there are upcoming pieces
@@ -1268,7 +1269,7 @@ func _add_glow_animation(node: Line2D, glow_color: Color) -> void:
 
 func _update_hovering_piece() -> void:
 	## Update the hovering arrival piece position based on mouse/touch
-	if game_state == null or not game_state.must_place_piece():
+	if game_state == null or not game_state.must_place_piece() or is_remote_turn():
 		hovering_piece.visible = false
 		ghost_piece.visible = false
 		hovered_column = -1

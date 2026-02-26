@@ -485,3 +485,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 23:48 - Online UI fix
+
+**Why**: Bug fix: opponent placement UI visible to local player
+
+**Accomplished**:
+- Hide opponent's arrival piece/highlights/queue during their turn in online mode
+
+**Next steps**:
+- Test in multiplayer game
+
+**Blockers**: None
+
