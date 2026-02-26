@@ -3,18 +3,21 @@ extends Control
 
 const BoardViewScene := preload("res://src/ui/board/board_view.tscn")
 const MultiplayerMenuScene := preload("res://src/ui/multiplayer/multiplayer_menu.tscn")
+const SettingsMenuScene := preload("res://src/ui/settings/settings_menu.tscn")
 
 @onready var game_container: Control = $GameContainer
 @onready var menu_container: Control = $MenuContainer
 @onready var two_player_button: Button = %TwoPlayerButton
 @onready var vs_computer_button: Button = %VsComputerButton
 @onready var play_online_button: Button = %PlayOnlineButton
+@onready var settings_button: Button = %SettingsButton
 @onready var title_label: Label = $MenuContainer/CenterContainer/VBoxContainer/Title
 @onready var subtitle_label: Label = $MenuContainer/CenterContainer/VBoxContainer/Subtitle
 @onready var credit_label: Label = $MenuContainer/Credit
 
 var board_view: Control
 var multiplayer_menu: Control
+var settings_menu: Control
 var is_mobile: bool = false
 var is_online_game: bool = false
 var my_side: int = Piece.Side.WHITE
@@ -29,6 +32,7 @@ func _ready() -> void:
 	two_player_button.pressed.connect(_on_two_player_pressed)
 	vs_computer_button.pressed.connect(_on_vs_computer_pressed)
 	play_online_button.pressed.connect(_on_play_online_pressed)
+	settings_button.pressed.connect(_on_settings_pressed)
 
 	# Setup mobile detection
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -47,6 +51,11 @@ func _show_main_menu() -> void:
 		multiplayer_menu.queue_free()
 		multiplayer_menu = null
 
+	# Clean up settings menu if exists
+	if settings_menu:
+		settings_menu.queue_free()
+		settings_menu = null
+
 	# Disconnect network if connected
 	if NetworkManager.is_online():
 		NetworkManager.disconnect_from_game()
@@ -63,6 +72,21 @@ func _on_vs_computer_pressed() -> void:
 	settings["game_mode"] = 1  # VS_AI
 	settings["ai_side"] = Piece.Side.BLACK  # AI plays black
 	_start_game(settings)
+
+
+func _on_settings_pressed() -> void:
+	menu_container.visible = false
+
+	settings_menu = SettingsMenuScene.instantiate()
+	add_child(settings_menu)
+	settings_menu.back_pressed.connect(_on_settings_back)
+
+
+func _on_settings_back() -> void:
+	if settings_menu:
+		settings_menu.queue_free()
+		settings_menu = null
+	_show_main_menu()
 
 
 func _on_play_online_pressed() -> void:
@@ -212,9 +236,11 @@ func _update_menu_fonts() -> void:
 		two_player_button.add_theme_font_size_override("font_size", 36)
 		vs_computer_button.add_theme_font_size_override("font_size", 36)
 		play_online_button.add_theme_font_size_override("font_size", 36)
+		settings_button.add_theme_font_size_override("font_size", 36)
 		two_player_button.custom_minimum_size = Vector2(350, 80)
 		vs_computer_button.custom_minimum_size = Vector2(350, 80)
 		play_online_button.custom_minimum_size = Vector2(350, 80)
+		settings_button.custom_minimum_size = Vector2(350, 80)
 		credit_label.add_theme_font_size_override("font_size", 18)
 	else:
 		# Desktop: original sizes
@@ -223,7 +249,9 @@ func _update_menu_fonts() -> void:
 		two_player_button.add_theme_font_size_override("font_size", 20)
 		vs_computer_button.add_theme_font_size_override("font_size", 20)
 		play_online_button.add_theme_font_size_override("font_size", 20)
+		settings_button.add_theme_font_size_override("font_size", 20)
 		two_player_button.custom_minimum_size = Vector2(250, 50)
 		vs_computer_button.custom_minimum_size = Vector2(250, 50)
 		play_online_button.custom_minimum_size = Vector2(250, 50)
+		settings_button.custom_minimum_size = Vector2(250, 50)
 		credit_label.add_theme_font_size_override("font_size", 12)

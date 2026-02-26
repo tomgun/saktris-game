@@ -33,6 +33,9 @@ var music_volume: float = 0.8
 var sfx_volume: float = 1.0
 var audio_theme: String = "classic"
 
+## Player settings
+var player_name: String = ""
+
 ## Visual settings
 var board_theme: String = "retrofuturistic"  # Default to new retrofuturistic theme
 var piece_set: String = "standard"  ## Options: "standard", "spatial"
@@ -45,10 +48,7 @@ signal settings_changed
 
 
 func _ready() -> void:
-	# TODO: Enable persistence when settings UI is added
-	# For now, always use code defaults so developers can easily tweak values
-	# load_settings()
-	pass
+	load_settings()
 
 
 func load_settings() -> void:
@@ -80,6 +80,9 @@ func load_settings() -> void:
 	# Note: action_move_cooldown and action_arrival_interval are NOT loaded from save
 	# They always use code defaults so developers can easily tweak them
 
+	# Player settings
+	player_name = data.get("player_name", player_name)
+
 	# Audio settings
 	master_volume = data.get("master_volume", master_volume)
 	music_volume = data.get("music_volume", music_volume)
@@ -103,6 +106,7 @@ func save_settings() -> void:
 	# Note: action_move_cooldown and action_arrival_interval are NOT saved
 	# They always use code defaults so developers can easily tweak them
 	var data := {
+		"player_name": player_name,
 		"arrival_frequency": arrival_frequency,
 		"arrival_mode": arrival_mode,
 		"row_clear_enabled": row_clear_enabled,
@@ -166,6 +170,7 @@ func get_game_settings() -> Dictionary:
 
 func reset_to_defaults() -> void:
 	## Reset all settings to default values
+	player_name = ""
 	arrival_frequency = 1
 	arrival_mode = PieceArrivalManager.Mode.FIXED
 	row_clear_enabled = false

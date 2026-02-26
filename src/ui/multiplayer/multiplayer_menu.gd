@@ -20,6 +20,9 @@ signal game_starting(settings: Dictionary, is_host: bool, my_side: int)
 @onready var black_button: Button = %BlackButton
 @onready var cancel_button: Button = %CancelButton
 @onready var join_room_button: Button = %JoinRoomButton
+@onready var name_panel: PanelContainer = %NamePanel
+@onready var name_input: LineEdit = %NameInput
+@onready var continue_button: Button = %ContinueButton
 
 var _selected_side: int = Piece.Side.WHITE
 var _connect_timer: SceneTreeTimer = null
@@ -35,6 +38,7 @@ func _ready() -> void:
 	white_button.pressed.connect(_on_white_selected)
 	black_button.pressed.connect(_on_black_selected)
 	room_code_input.text_submitted.connect(_on_room_code_submitted)
+	continue_button.pressed.connect(_on_continue_pressed)
 
 	# Connect NetworkManager signals
 	NetworkManager.state_changed.connect(_on_network_state_changed)
@@ -45,10 +49,35 @@ func _ready() -> void:
 	NetworkManager.game_starting.connect(_on_game_starting)
 
 	_update_side_buttons()
+
+	if Settings.player_name.strip_edges().is_empty():
+		_show_name_panel()
+	else:
+		_show_main_panel()
+
+
+func _show_name_panel() -> void:
+	name_panel.visible = true
+	main_panel.visible = false
+	waiting_panel.visible = false
+	join_panel.visible = false
+	name_input.text = Settings.player_name
+	name_input.grab_focus()
+	status_label.text = ""
+
+
+func _on_continue_pressed() -> void:
+	var name_text := name_input.text.strip_edges()
+	if name_text.is_empty():
+		status_label.text = "Please enter a name"
+		return
+	Settings.player_name = name_text
+	Settings.save_settings()
 	_show_main_panel()
 
 
 func _show_main_panel() -> void:
+	name_panel.visible = false
 	main_panel.visible = true
 	waiting_panel.visible = false
 	join_panel.visible = false
@@ -56,6 +85,7 @@ func _show_main_panel() -> void:
 
 
 func _show_waiting_panel(code: String) -> void:
+	name_panel.visible = false
 	main_panel.visible = false
 	waiting_panel.visible = true
 	join_panel.visible = false
@@ -64,6 +94,7 @@ func _show_waiting_panel(code: String) -> void:
 
 
 func _show_join_panel() -> void:
+	name_panel.visible = false
 	main_panel.visible = false
 	waiting_panel.visible = false
 	join_panel.visible = true
