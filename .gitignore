@@ -56,6 +56,10 @@ agentic-backup-*/
 # Node.js (signaling server)
 node_modules/
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Local environment
 .env
 .env.local
