@@ -459,3 +459,29 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 22:49 - Multi-feature commit
+
+**Why**: Committing accumulated robustness improvements
+
+**Accomplished**:
+- AI safety guards (abort/timeout/fallback), iteration guards in board/game_state, tween lifecycle tracking, network cold-start retry with auto-reconnect, STACK.md settings reorganization
+
+**Next steps**:
+- Investigate game stall bug (AI turn not completing)
+
+**Blockers**: None
+
+
+### Session: 2026-02-26 23:06 - AI stall fix
+
+**Why**: Bug fix for game-stalling AI issue
+
+**Accomplished**:
+- Fixed AI stalling when back row full - placement returns column:-1, AI now falls back to regular move per AC8 rules
+
+**Next steps**:
+- Test the fix in-game
+
+**Blockers**: None
+

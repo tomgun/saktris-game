@@ -770,27 +770,46 @@ func request_ai_move() -> void:
 	ai_thinking_finished.emit()
 
 	# Fallback if AI returned empty or invalid result
-	if move.is_empty() or (move.has("from") and move["from"] == Vector2i(-1, -1) and not move.has("column")):
+	if move.is_empty() \
+			or (move.has("from") and move["from"] == Vector2i(-1, -1) and not move.has("column")) \
+			or (move.has("column") and move["column"] < 0 and not move.has("from")):
 		push_warning("[AI] Empty or invalid result, using fallback move")
 		move = _get_fallback_move()
 
 	# Execute the move
 	if move.has("column") and move["column"] >= 0:
 		var column: int = move["column"]
-		try_place_piece(column)
-		print("[DEBUG] AI placed at column %d" % column)
-		ai_move_made.emit({"type": "placement", "column": column})
+		var placed := try_place_piece(column)
+		if placed:
+			print("[DEBUG] AI placed at column %d" % column)
+			ai_move_made.emit({"type": "placement", "column": column})
+		else:
+			push_warning("[AI] Placement at column %d failed, trying fallback move" % column)
+			move = _get_fallback_move()
+			if move.has("from") and move["from"] != Vector2i(-1, -1):
+				try_move(move["from"], move["to"])
+				ai_move_made.emit({"type": "move", "from": move["from"], "to": move["to"]})
 	elif move.has("from") and move.has("to"):
 		var from: Vector2i = move["from"]
 		var to: Vector2i = move["to"]
 		if from != Vector2i(-1, -1):
 			var success := try_move(from, to)
-			print("[DEBUG] AI moved %s -> %s, success=%s" % [from, to, success])
-			ai_move_made.emit({"type": "move", "from": from, "to": to})
+			if success:
+				print("[DEBUG] AI moved %s -> %s" % [from, to])
+				ai_move_made.emit({"type": "move", "from": from, "to": to})
+			else:
+				push_warning("[AI] Move %s -> %s failed, trying fallback" % [from, to])
+				move = _get_fallback_move()
+				if move.has("column") and move["column"] >= 0:
+					try_place_piece(move["column"])
+					ai_move_made.emit({"type": "placement", "column": move["column"]})
+				elif move.has("from") and move["from"] != Vector2i(-1, -1):
+					try_move(move["from"], move["to"])
+					ai_move_made.emit({"type": "move", "from": move["from"], "to": move["to"]})
 		else:
-			print("[DEBUG] AI: No valid move found!")
+			push_warning("[AI] No valid move found!")
 	else:
-		print("[DEBUG] AI: Unexpected move format: %s" % move)
+		push_warning("[AI] Unexpected move format: %s" % move)
 
 
 func _calculate_ai_move_threaded(board_data: Dictionary, arrival_data: Dictionary, ai_side_val: int, ai_difficulty_val: int, ai_max_depth_val: int) -> void:
@@ -807,6 +826,9 @@ func _calculate_ai_move_threaded(board_data: Dictionary, arrival_data: Dictionar
 	var arriving := thread_arrival.get_current_piece(ai_side_val)
 	if arriving != null:
 		_ai_result = _calculate_placement_threaded(thread_board, thread_arrival, thread_ai, ai_side_val)
+		# If placement failed (back row full), fall back to regular move
+		if _ai_result.get("column", -1) < 0:
+			_ai_result = _calculate_move_threaded(thread_board, thread_ai)
 	else:
 		_ai_result = _calculate_move_threaded(thread_board, thread_ai)
 

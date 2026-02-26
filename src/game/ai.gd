@@ -56,7 +56,10 @@ func get_best_move(game_state: GameState) -> Dictionary:
 	# Check if we need to place a piece first
 	var arriving := game_state.arrival_manager.get_current_piece(side)
 	if arriving != null:
-		return _get_best_placement(game_state)
+		var placement := _get_best_placement(game_state)
+		if placement.get("column", -1) >= 0:
+			return placement
+		# Can't place (back row full) — fall through to regular move
 
 	# Find best move using minimax
 	return _get_best_regular_move(game_state)
@@ -69,7 +72,10 @@ func get_best_move_async(game_state: GameState) -> Dictionary:
 	# Check if we need to place a piece first (fast, no async needed)
 	var arriving := game_state.arrival_manager.get_current_piece(side)
 	if arriving != null:
-		return _get_best_placement(game_state)
+		var placement := _get_best_placement(game_state)
+		if placement.get("column", -1) >= 0:
+			return placement
+		# Can't place (back row full) — fall through to regular move
 
 	# Find best move using async minimax
 	return await _get_best_regular_move_async(game_state)
