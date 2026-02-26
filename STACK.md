@@ -115,5 +115,5 @@ Purpose: a single source of truth for "how we build and run software here".
 - plan_review_enabled: yes
 - spec_directory: yes
 - docs_gate: blocking
-- max_code_file_length: 900
+- max_code_file_length: 500
 - git_workflow: direct
