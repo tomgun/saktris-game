@@ -5,7 +5,7 @@
 Purpose: a single source of truth for "how we build and run software here".
 
 ## Agentic framework
-- Version: 0.33.1
+- Version: 0.33.2
 - Profile: formal
 - Installed: 2026-01-08
 - Source: https://github.com/tomgun/agentic-framework
@@ -108,12 +108,12 @@ Purpose: a single source of truth for "how we build and run software here".
 
 ## Settings
 <!-- Use `ag set <key> <value>` to change, `ag set --show` to view all. -->
-- profile: formal
-- feature_tracking: yes- acceptance_criteria: blocking- wip_before_commit: blocking- pre_commit_checks: full- plan_review_enabled: yes- spec_directory: yes- docs_gate: blocking
-- git_workflow: direct
+- feature_tracking: yes
 - acceptance_criteria: blocking
 - wip_before_commit: blocking
 - pre_commit_checks: full
 - plan_review_enabled: yes
 - spec_directory: yes
 - docs_gate: blocking
+- max_code_file_length: 900
+- git_workflow: direct
