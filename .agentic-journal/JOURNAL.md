@@ -498,3 +498,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 23:52 - Side selector UX
+
+**Why**: UX improvement: side choice irrelevant for joining player
+
+**Accomplished**:
+- Moved side selector behind Create Game click - only host picks side
+
+**Next steps**:
+- None
+
+**Blockers**: None
+

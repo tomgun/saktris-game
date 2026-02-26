@@ -15,6 +15,7 @@ signal game_starting(settings: Dictionary, is_host: bool, my_side: int)
 @onready var waiting_panel: PanelContainer = %WaitingPanel
 @onready var join_panel: PanelContainer = %JoinPanel
 @onready var main_panel: PanelContainer = %MainPanel
+@onready var side_label: Label = %SideLabel
 @onready var side_selector: HBoxContainer = %SideSelector
 @onready var white_button: Button = %WhiteButton
 @onready var black_button: Button = %BlackButton
@@ -81,6 +82,10 @@ func _show_main_panel() -> void:
 	main_panel.visible = true
 	waiting_panel.visible = false
 	join_panel.visible = false
+	side_label.visible = false
+	side_selector.visible = false
+	join_button.visible = true
+	create_button.text = "Create Game"
 	status_label.text = ""
 
 
@@ -119,9 +124,17 @@ func _on_black_selected() -> void:
 
 
 func _on_create_pressed() -> void:
+	# Two-step flow: first show side selector, then create room
+	if not side_selector.visible:
+		side_label.visible = true
+		side_selector.visible = true
+		join_button.visible = false
+		create_button.text = "Create Room"
+		return
+
+	# Second click: actually create the room
 	status_label.text = "Connecting..."
 	create_button.disabled = true
-	join_button.disabled = true
 
 	# Connect to signaling server first
 	if NetworkManager.get_state() == NetworkManager.ConnectionState.OFFLINE:
