@@ -52,6 +52,35 @@ theme_override_constants/margin_bottom = 20
 layout_mode = 2
 theme_override_constants/separation = 15
 
+[node name="GameStyleLabel" type="Label" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox"]
+layout_mode = 2
+text = "Game Style"
+horizontal_alignment = 1
+
+[node name="GameStyleSelector" type="HBoxContainer" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="ClassicButton" type="Button" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox/GameStyleSelector"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 40)
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+text = "Classic"
+
+[node name="ActionButton" type="Button" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox/GameStyleSelector"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 40)
+layout_mode = 2
+toggle_mode = true
+text = "Action"
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox"]
+layout_mode = 2
+
 [node name="NameLabel" type="Label" parent="CenterContainer/VBoxContainer/SettingsPanel/MarginContainer/VBox"]
 layout_mode = 2
 text = "Player Name"

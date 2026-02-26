@@ -11,6 +11,7 @@ extends Node
 const SETTINGS_PATH := "user://settings.json"
 
 ## Game settings
+var game_style: int = 0  ## 0 = Classic (turn-based), 1 = Action (real-time)
 var arrival_frequency: int = 1
 var arrival_mode: int = PieceArrivalManager.Mode.FIXED
 var row_clear_enabled: bool = false
@@ -71,6 +72,7 @@ func load_settings() -> void:
 	var data: Dictionary = json.data
 
 	# Game settings
+	game_style = data.get("game_style", game_style)
 	arrival_frequency = data.get("arrival_frequency", arrival_frequency)
 	arrival_mode = data.get("arrival_mode", arrival_mode)
 	row_clear_enabled = data.get("row_clear_enabled", row_clear_enabled)
@@ -107,6 +109,7 @@ func save_settings() -> void:
 	# They always use code defaults so developers can easily tweak them
 	var data := {
 		"player_name": player_name,
+		"game_style": game_style,
 		"arrival_frequency": arrival_frequency,
 		"arrival_mode": arrival_mode,
 		"row_clear_enabled": row_clear_enabled,

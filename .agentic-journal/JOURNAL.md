@@ -511,3 +511,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-26 23:58 - Game style setting
+
+**Why**: Make action mode available for all game types
+
+**Accomplished**:
+- Added Classic/Action game style selector in Settings, applies to all game types
+
+**Next steps**:
+- Test action mode across all game types
+
+**Blockers**: None
+

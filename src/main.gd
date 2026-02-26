@@ -63,13 +63,20 @@ func _show_main_menu() -> void:
 
 func _on_two_player_pressed() -> void:
 	var settings := Settings.get_game_settings()
-	settings["game_mode"] = 0  # TWO_PLAYER
+	if Settings.game_style == 1:
+		settings["game_mode"] = GameState.GameMode.ACTION
+	else:
+		settings["game_mode"] = GameState.GameMode.TWO_PLAYER
 	_start_game(settings)
 
 
 func _on_vs_computer_pressed() -> void:
 	var settings := Settings.get_game_settings()
-	settings["game_mode"] = 1  # VS_AI
+	if Settings.game_style == 1:
+		settings["game_mode"] = GameState.GameMode.ACTION
+		settings["use_ai"] = true
+	else:
+		settings["game_mode"] = GameState.GameMode.VS_AI
 	settings["ai_side"] = Piece.Side.BLACK  # AI plays black
 	_start_game(settings)
 
@@ -115,7 +122,10 @@ func _on_online_game_starting(data: Dictionary, is_host: bool, side: int) -> voi
 	var seed_val: int = data.get("seed", 0)
 
 	# Override settings for network play
-	settings["game_mode"] = GameState.GameMode.TWO_PLAYER
+	if Settings.game_style == 1:
+		settings["game_mode"] = GameState.GameMode.ACTION
+	else:
+		settings["game_mode"] = GameState.GameMode.TWO_PLAYER
 	settings["network_seed"] = seed_val
 
 	# Clean up multiplayer menu
