@@ -121,11 +121,7 @@ func _on_online_game_starting(data: Dictionary, is_host: bool, side: int) -> voi
 	var settings: Dictionary = data.get("settings", {})
 	var seed_val: int = data.get("seed", 0)
 
-	# Override settings for network play
-	if Settings.game_style == 1:
-		settings["game_mode"] = GameState.GameMode.ACTION
-	else:
-		settings["game_mode"] = GameState.GameMode.TWO_PLAYER
+	# Use host's game mode from settings (don't override with local settings)
 	settings["network_seed"] = seed_val
 
 	# Clean up multiplayer menu

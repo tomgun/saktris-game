@@ -524,3 +524,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-27 11:07 - F-0023: Online Action Mode Fixes
+
+**Why**: Multiple online action mode bugs and UX improvements
+
+**Accomplished**:
+- Fixed cooldown bar positioning on resize, synced game_mode from host to guest, added Random side option, added I'm Ready button for online action mode
+
+**Next steps**:
+- Manual testing in Godot
+
+**Blockers**: None
+

@@ -52,6 +52,7 @@ signal remote_promotion_received(piece_type: int)
 signal remote_resign()
 signal remote_draw_offer()
 signal remote_draw_response(accepted: bool)
+signal remote_ready_received()
 signal ping_updated(ms: int)
 signal resync_needed()
 
@@ -422,8 +423,8 @@ func _on_webrtc_message(data: PackedByteArray) -> void:
 			game_starting.emit(parsed)
 
 		NetworkProtocolClass.MessageType.GAME_READY:
-			# Guest is ready - game can begin
-			pass
+			# Remote player is ready
+			remote_ready_received.emit()
 
 		NetworkProtocolClass.MessageType.MOVE:
 			var parsed := NetworkProtocolClass.parse_move(msg_data)

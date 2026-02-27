@@ -19,13 +19,15 @@ signal game_starting(settings: Dictionary, is_host: bool, my_side: int)
 @onready var side_selector: HBoxContainer = %SideSelector
 @onready var white_button: Button = %WhiteButton
 @onready var black_button: Button = %BlackButton
+@onready var random_button: Button = %RandomButton
 @onready var cancel_button: Button = %CancelButton
 @onready var join_room_button: Button = %JoinRoomButton
 @onready var name_panel: PanelContainer = %NamePanel
 @onready var name_input: LineEdit = %NameInput
 @onready var continue_button: Button = %ContinueButton
 
-var _selected_side: int = Piece.Side.WHITE
+const SIDE_RANDOM := -1
+var _selected_side: int = SIDE_RANDOM
 var _connect_timer: SceneTreeTimer = null
 
 
@@ -38,6 +40,7 @@ func _ready() -> void:
 	join_room_button.pressed.connect(_on_join_room_button_pressed)
 	white_button.pressed.connect(_on_white_selected)
 	black_button.pressed.connect(_on_black_selected)
+	random_button.pressed.connect(_on_random_selected)
 	room_code_input.text_submitted.connect(_on_room_code_submitted)
 	continue_button.pressed.connect(_on_continue_pressed)
 
@@ -111,6 +114,7 @@ func _show_join_panel() -> void:
 func _update_side_buttons() -> void:
 	white_button.button_pressed = (_selected_side == Piece.Side.WHITE)
 	black_button.button_pressed = (_selected_side == Piece.Side.BLACK)
+	random_button.button_pressed = (_selected_side == SIDE_RANDOM)
 
 
 func _on_white_selected() -> void:
@@ -120,6 +124,11 @@ func _on_white_selected() -> void:
 
 func _on_black_selected() -> void:
 	_selected_side = Piece.Side.BLACK
+	_update_side_buttons()
+
+
+func _on_random_selected() -> void:
+	_selected_side = SIDE_RANDOM
 	_update_side_buttons()
 
 
@@ -135,6 +144,10 @@ func _on_create_pressed() -> void:
 	# Second click: actually create the room
 	status_label.text = "Connecting..."
 	create_button.disabled = true
+
+	# Resolve random side now so it's consistent everywhere
+	if _selected_side == SIDE_RANDOM:
+		_selected_side = Piece.Side.WHITE if randi() % 2 == 0 else Piece.Side.BLACK
 
 	# Connect to signaling server first
 	if NetworkManager.get_state() == NetworkManager.ConnectionState.OFFLINE:
@@ -262,12 +275,15 @@ func _on_peer_connected() -> void:
 		# Generate game seed and settings
 		var seed_val := randi()
 		var settings := Settings.get_game_settings()
-		settings["game_mode"] = GameState.GameMode.TWO_PLAYER
+		if Settings.game_style == 1:
+			settings["game_mode"] = GameState.GameMode.ACTION
+		else:
+			settings["game_mode"] = GameState.GameMode.TWO_PLAYER
 
 		# Send game start to guest
 		NetworkManager.start_game(settings, seed_val)
 
-		# Start local game
+		# Start local game (_selected_side already resolved from random at create time)
 		game_starting.emit({
 			"settings": settings,
 			"seed": seed_val

@@ -45,6 +45,7 @@ var action_ai_reaction_min: float = 0.4    ## Minimum AI reaction time after coo
 var action_ai_reaction_max: float = 1.0    ## Maximum AI reaction time after cooldown ready
 
 ## Action mode timers (counts down to 0)
+var action_paused: bool = false  ## When true, action mode timers don't tick (e.g. waiting for ready)
 var _white_move_timer: float = 0.0
 var _black_move_timer: float = 0.0
 var _arrival_timer: float = 0.0
@@ -186,6 +187,8 @@ func tick(delta: float) -> void:
 	if game_mode != GameMode.ACTION:
 		return
 	if not is_game_in_progress():
+		return
+	if action_paused:
 		return
 	_tick_action_mode(delta)
 

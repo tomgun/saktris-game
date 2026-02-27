@@ -67,6 +67,11 @@ var _arrival_piece_preview: TextureRect = null
 var _arrival_column_highlight: ColorRect = null
 var _arrival_side_label: Label = null
 
+# Ready overlay for online action mode
+var _ready_overlay: PanelContainer = null
+var _local_ready: bool = false
+var _remote_ready: bool = false
+
 @onready var board_container: Control = %BoardContainer
 @onready var squares_grid: Control = %SquaresGrid
 @onready var board_background: ColorRect = $MarginContainer/HBoxContainer/BoardWrapper/BoardContainer/BoardBackground
@@ -133,12 +138,20 @@ func _exit_tree() -> void:
 		if tween.is_valid():
 			tween.kill()
 	_active_tweens.clear()
+	if NetworkManager.remote_ready_received.is_connected(_on_remote_ready):
+		NetworkManager.remote_ready_received.disconnect(_on_remote_ready)
 
 
 func set_online_mode(enabled: bool, side: int) -> void:
 	## Enable online multiplayer mode
 	is_online_mode = enabled
 	my_side = side
+
+	# Show ready overlay for online action games
+	if enabled and game_state and game_state.game_mode == GameState.GameMode.ACTION:
+		game_state.action_paused = true
+		_show_ready_overlay()
+		NetworkManager.remote_ready_received.connect(_on_remote_ready)
 
 
 func is_my_turn() -> bool:
@@ -1435,6 +1448,9 @@ func _on_resized() -> void:
 		sprite.size = Vector2(square_size, square_size)
 		sprite.position = _board_to_pixel(pos)
 
+	# Action mode UI (cooldown bars, arrival indicators)
+	_reposition_action_mode_ui()
+
 
 func _initial_layout_setup() -> void:
 	await get_tree().process_frame
@@ -2342,6 +2358,136 @@ func _clear_action_mode_ui() -> void:
 	if _arrival_side_label:
 		_arrival_side_label.queue_free()
 		_arrival_side_label = null
+
+
+func _reposition_action_mode_ui() -> void:
+	## Reposition action mode UI elements after board resize
+	var bar_height := 8.0
+	var bar_width := square_size * BOARD_SIZE
+
+	if _white_cooldown_bg:
+		_white_cooldown_bg.position = Vector2(0, square_size * BOARD_SIZE + 2)
+		_white_cooldown_bg.size = Vector2(bar_width, bar_height)
+	if _white_cooldown_bar:
+		_white_cooldown_bar.position = Vector2(0, square_size * BOARD_SIZE + 2)
+
+	if _black_cooldown_bg:
+		_black_cooldown_bg.position = Vector2(0, -bar_height - 2)
+		_black_cooldown_bg.size = Vector2(bar_width, bar_height)
+	if _black_cooldown_bar:
+		_black_cooldown_bar.position = Vector2(0, -bar_height - 2)
+
+	if _arrival_timer_label:
+		_arrival_timer_label.position = Vector2(bar_width / 2 - 60, -bar_height - 45)
+	if _arrival_side_label:
+		_arrival_side_label.position = Vector2(bar_width / 2 - 40, -bar_height - 65)
+	if _arrival_piece_preview:
+		_arrival_piece_preview.position = Vector2(bar_width / 2 + 65, -bar_height - 55)
+
+
+func _show_ready_overlay() -> void:
+	## Show a prominent "I'm Ready!" overlay for online action mode
+	_ready_overlay = PanelContainer.new()
+	_ready_overlay.anchors_preset = Control.PRESET_FULL_RECT
+	_ready_overlay.z_index = 100
+	_ready_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Semi-transparent background
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0.7)
+	style.set_content_margin_all(20)
+	_ready_overlay.add_theme_stylebox_override("panel", style)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_ready_overlay.add_child(vbox)
+
+	var spacer_top := Control.new()
+	spacer_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer_top)
+
+	var title := Label.new()
+	title.text = "ACTION MODE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3))
+	vbox.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.text = "Both players move simultaneously"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	vbox.add_child(subtitle)
+
+	var spacer_mid := Control.new()
+	spacer_mid.custom_minimum_size = Vector2(0, 30)
+	vbox.add_child(spacer_mid)
+
+	var ready_button := Button.new()
+	ready_button.text = "I'm Ready!"
+	ready_button.custom_minimum_size = Vector2(250, 70)
+	ready_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ready_button.add_theme_font_size_override("font_size", 28)
+	ready_button.pressed.connect(_on_ready_pressed)
+	vbox.add_child(ready_button)
+
+	var status := Label.new()
+	status.name = "ReadyStatus"
+	status.text = ""
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 16)
+	status.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
+	vbox.add_child(status)
+
+	var spacer_bottom := Control.new()
+	spacer_bottom.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer_bottom)
+
+	add_child(_ready_overlay)
+
+
+func _on_ready_pressed() -> void:
+	## Local player pressed "I'm Ready!"
+	_local_ready = true
+	NetworkManager.send_ready()
+
+	# Update overlay UI
+	if _ready_overlay:
+		var status_label_node := _ready_overlay.find_child("ReadyStatus", true, false)
+		if status_label_node:
+			status_label_node.text = "Waiting for opponent..."
+		var buttons := _ready_overlay.find_children("", "Button", true, false)
+		if buttons.size() > 0:
+			buttons[0].disabled = true
+			buttons[0].text = "Ready!"
+
+	_check_both_ready()
+
+
+func _on_remote_ready() -> void:
+	## Remote player sent ready signal
+	_remote_ready = true
+
+	# Update overlay status if we're still showing it
+	if _ready_overlay and not _local_ready:
+		var status_label_node := _ready_overlay.find_child("ReadyStatus", true, false)
+		if status_label_node:
+			status_label_node.text = "Opponent is ready!"
+
+	_check_both_ready()
+
+
+func _check_both_ready() -> void:
+	## Start game when both players are ready
+	if _local_ready and _remote_ready:
+		if _ready_overlay:
+			_ready_overlay.queue_free()
+			_ready_overlay = null
+		if game_state:
+			game_state.action_paused = false
 
 
 func _update_action_mode_display() -> void:

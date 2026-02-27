@@ -547,3 +547,26 @@
   - Integration: n/a
   - Acceptance: todo
 - Description: Real-time game mode where both players move independently on cooldowns. Pieces auto-arrive at timed intervals. Win by capturing king. Includes bump mechanic for full rows, AI reaction delay for fairness, and pawn promotion disabled (falls off board).
+
+## F-0023: OnlineActionModeFixes
+- Tags: [multiplayer, bugfix, ux]
+- Layer: ui
+- Domain: multiplayer
+- Priority: high
+- Parent: F-0021, F-0022
+- Dependencies: F-0021, F-0022
+- Complexity: M
+- Status: shipped
+- Acceptance: spec/acceptance/F-0023.md
+- Verification:
+  - Accepted: no
+  - Accepted at:
+- Implementation:
+  - State: complete
+  - Code: src/ui/board/board_view.gd, src/main.gd, src/ui/multiplayer/multiplayer_menu.gd, src/network/network_manager.gd, src/game/game_state.gd
+- Tests:
+  - Strategy: manual
+  - Unit: n/a
+  - Integration: n/a
+  - Acceptance: todo
+- Description: Fix cooldown bar positioning on resize, sync game mode from host to guest in online play, add Random side option, add I'm Ready button overlay for online action mode.
