@@ -537,3 +537,16 @@
 
 **Blockers**: None
 
+
+### Session: 2026-02-27 11:16 - Docs audit & update
+
+**Why**: Framework docs were out of sync with actual implementation state
+
+**Accomplished**:
+- Fixed all status mismatches in acceptance files, created missing F-0016/F-0017/F-0018, restored corrupted F-0012, updated F-0021 to shipped, updated FEATURES.md and STATUS.md
+
+**Next steps**:
+- Manual testing of F-0023
+
+**Blockers**: None
+

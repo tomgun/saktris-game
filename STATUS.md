@@ -6,15 +6,15 @@
 
 ## In Progress
 
-- None
+- F-0023: Online Action Mode Fixes & Ready Button - implemented, ready for testing
 
 ## Next Tasks (Priority)
 
-1. **Save/Load** - Persist game state, autosave functionality
-2. **Settings menu** - Configure arrival frequency, game modes, piece set toggle
-3. **Clock UI** - Display timer mode countdown in game
-4. **Game rules screen** - Viewable from main menu link
-5. **Move history export** - Copy movement history as text for debugging/sharing
+1. **Save/Load (F-0006)** - Persist game state, autosave functionality
+2. **Settings menu completion (F-0007)** - Add arrival config, piece set, theme, volume controls
+3. **Game rules screen (F-0020)** - Viewable from main menu link
+4. **Move history navigation (F-0009)** - Navigate through move history, board state replay
+5. **Mobile bug fixes (F-0019)** - I-0001 board size, I-0002 landscape rotation
 
 ## Backlog
 
@@ -23,13 +23,14 @@
 
 ---
 
-## Current State (2026-01-27)
+## Current State (2026-02-27)
 
 - Game is playable at: https://tomgun.github.io/saktris-game/
 - GitHub repo: https://github.com/tomgun/saktris-game (public)
 - Turn logic: Place a piece OR move a piece (not both)
 - Features working:
   - Two-player, vs AI, and Action Mode (real-time)
+  - Online multiplayer (WebRTC P2P with room codes)
   - Piece arrival system (frequency-based, auto-arrival in action mode)
   - Physics bump animations with collision sparks
   - Motion trails for long-distance slider moves
@@ -45,9 +46,11 @@
   - Draw detection (50-move rule, threefold repetition, insufficient material)
   - Timer mode (chess clock with various time controls)
   - Multiple piece sets (standard flat, spatial 3D-style)
-  - Mobile responsive layout with touch input support
+  - Mobile responsive layout with touch input support (partial - known bugs)
   - Triplet clear rule (3-in-a-row clears pieces)
   - Action Mode with per-player cooldowns, auto-arrivals, bump mechanics
+  - Online action mode with ready button, game mode sync, random side option
+  - Settings menu (player name, game style)
 
 ## Known Issues
 - See `spec/ISSUES.md` (2 open: I-0001 board size, I-0002 landscape rotation)
@@ -68,6 +71,11 @@
 - F-0016: Timer Mode (chess clock)
 - F-0017: Draw Rules (50-move, repetition, insufficient material)
 - F-0018: Multiple Piece Sets (standard, spatial 3D)
-- F-0019: Mobile View (responsive layout + touch input)
+- F-0021: Online Multiplayer (WebRTC P2P)
 - F-0022: Action Mode (real-time gameplay with cooldowns)
+- F-0023: Online Action Mode Fixes & Ready Button
 - Web deployment pipeline
+
+## Partially Complete
+- F-0007: Settings Menu (basic - name, game style; missing: arrival config, piece set, theme, volume)
+- F-0019: Mobile View (responsive layout + touch works; bugs: board size in portrait, landscape rotation)

@@ -188,20 +188,20 @@
 - Parent: none
 - Dependencies: F-0001
 - Complexity: M
-- Status: planned
+- Status: in_progress
 - Acceptance: spec/acceptance/F-0007.md
 - Verification:
   - Accepted: no
   - Accepted at:
 - Implementation:
-  - State: none
-  - Code:
+  - State: partial
+  - Code: src/ui/settings/settings_menu.gd, src/ui/settings/settings_menu.tscn, src/systems/settings.gd
 - Tests:
   - Strategy: manual
   - Unit: n/a
   - Integration: n/a
   - Acceptance: todo
-- Description: Configure game options: piece arrival frequency, arrival order mode (fixed/selectable/random), special rules toggle
+- Description: Settings menu with player name, game style (Classic/Action). Persists to user://settings.json. Missing: arrival config, piece set selector, visual theme, volume controls.
 
 ## F-0008: AIOpponent
 - Tags: [ai, gameplay]
@@ -510,20 +510,20 @@
 - Parent: none
 - Dependencies: F-0005
 - Complexity: L
-- Status: planned
+- Status: shipped
 - Acceptance: spec/acceptance/F-0021.md
 - Verification:
   - Accepted: no
   - Accepted at:
 - Implementation:
-  - State: none
-  - Code:
+  - State: complete
+  - Code: src/network/network_manager.gd, src/network/network_protocol.gd, src/network/signaling_client.gd, src/network/webrtc_client.gd, src/ui/multiplayer/multiplayer_menu.gd
 - Tests:
-  - Strategy: integration
+  - Strategy: manual
   - Unit: n/a
-  - Integration: todo
+  - Integration: n/a
   - Acceptance: todo
-- Description: Browser-to-browser online multiplayer using WebRTC or WebSocket. Players can create/join game rooms and play against each other in real-time. Includes game state synchronization, move validation, and disconnect handling.
+- Description: Browser-to-browser online multiplayer using WebRTC with WebSocket signaling server. Players create/join rooms via 6-character codes, play in real-time with move sync, placement sync, and disconnect handling. Signaling server on Render with auto-reconnect.
 
 ## F-0022: ActionMode
 - Tags: [gameplay, realtime]
